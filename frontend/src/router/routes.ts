@@ -19,27 +19,8 @@ import SettingAMSSettingPage from '../views/setting/AMSSettingPage.vue'
 import SettingSerialPage from '../views/setting/SerialPage.vue'
 import MessagePage from '../views/message/MessagePage.vue'
 
-export const ROUTE_NAME = {
-  HOME: 'home',
-  HOME_FILES: 'home-files',
-  CONTROL: 'control',
-  CONTROL_MOTION: 'control-motion',
-  CONTROL_NOZZLE: 'control-nozzle',
-  FILAMENT: 'filament',
-  FILAMENT_AUTO_REFILL: 'filament-auto-refill',
-  FILAMENT_EDIT: 'filament-edit',
-  SETTING_HOME: 'setting-home',
-  SETTING_DEVICE_ADD: 'setting-device-add',
-  SETTING_DEVICE_EDIT: 'setting-device-edit',
-  SETTING_FIRMWARE: 'setting-firmware',
-  SETTING_CALIBRATION: 'setting-calibration',
-  SETTING_TOOLBOX: 'setting-toolbox',
-  SETTING_SETTING: 'setting-setting',
-  SETTING_PRINT_OPTION: 'setting-print-option',
-  SETTING_AMS_SETTING: 'setting-ams-setting',
-  SETTING_SERIAL: 'setting-serial',
-  MESSAGE: 'message',
-} as const
+export { ROUTE_NAME } from './names'
+import { ROUTE_NAME } from './names'
 
 export const routes: RouteRecordRaw[] = [
   { path: '/', redirect: { name: ROUTE_NAME.HOME } },

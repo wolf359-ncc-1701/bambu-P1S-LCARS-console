@@ -1,13 +1,14 @@
 import { createApp } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { ActionSheet, Badge, Button, Checkbox, Slider, Progress, Popup, Popover, Overlay, Dialog, Cell, CellGroup, Empty, Tab, Tabs, Tabbar, TabbarItem, NavBar, Switch, Stepper, Field } from 'vant'
-import App from './App.vue'
+import LcarsApp from './lcars/LcarsApp.vue'
 import { i18n } from './i18n'
 import { client, connectPrinter } from './printer'
-import { routes } from './router/routes'
+import { lcarsRoutes } from './lcars/routes'
+import { lcarsMessages } from './lcars/i18n'
+import { vAmb } from './lcars/ambient'
 import { getCurrentDevice } from './utils/device'
-import 'vant/lib/index.css'
 import './styles/theme.css'
+import './lcars/lcars.css'
 import { installChromeLayoutDiffRuntime } from './chrome-layout-diff/runtime'
 
 // import { showDialog } from 'vant'
@@ -68,33 +69,28 @@ window.__P1ScreenOnAppLifecycle = (state: AppLifecycleState) => {
 
 const router = createRouter({
   history: createWebHashHistory(),
-  routes
+  routes: lcarsRoutes,
 })
 
-createApp(App)
+// After an update, a cached entry may point at chunk names that no longer exist:
+// reload once to pick up the new build instead of leaving a dead page.
+router.onError((error, to) => {
+  const msg = String(error?.message ?? error)
+  if (!/dynamically imported module|Importing a module script failed|Loading chunk/i.test(msg)) return
+  const KEY = 'lcars_chunk_reload'
+  if (sessionStorage.getItem(KEY) === to.fullPath) return
+  sessionStorage.setItem(KEY, to.fullPath)
+  window.location.hash = to.fullPath
+  window.location.reload()
+})
+
+i18n.global.mergeLocaleMessage('zh', lcarsMessages.zh)
+i18n.global.mergeLocaleMessage('en', lcarsMessages.en)
+
+createApp(LcarsApp)
+  .directive('amb', vAmb)
   .use(router)
   .use(i18n)
-  .use(ActionSheet)
-  .use(Badge)
-  .use(Button)
-  .use(Slider)
-  .use(Progress)
-  .use(Popup)
-  .use(Popover)
-  .use(Dialog)
-  .use(Cell)
-  .use(CellGroup)
-  .use(Empty)
-  .use(Tab)
-  .use(Tabs)
-  .use(Tabbar)
-  .use(TabbarItem)
-  .use(NavBar)
-  .use(Switch)
-  .use(Stepper)
-  .use(Overlay)
-  .use(Checkbox)
-  .use(Field)
   .mount('#app')
 
 window.addEventListener('contextmenu', (event) => {

@@ -1,0 +1,165 @@
+/* LCARS console dialect, recomposed for a 640x360 phone stage.
+   Rules kept for old Android WebViews (Chrome 57+): no flex gap, no inset, no
+   backdrop-filter, no box-shadow, no blur. Colour changes are instant; only
+   opacity and transform ever transition. */
+
+@font-face {
+  font-family: 'Antonio';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url(./fonts/antonio-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --g0: #000; --g1: #1E2229; --g2: #2F3749; --g3: #52596E; --g4: #6D748C; --g5: #9EA5BA; --g6: #DFE1E8;
+  --c0: #002241; --c1: #1C3C55; --c2: #2A7193; --c3: #37A6D1; --c4: #67CAF0; --c5: #93E1FF;
+  --o1: #EF1D10; --o2: #E7442A; --o3: #FF6753; --o4: #FF977B; --o5: #FCC59D; --o6: #FAE3C7;
+  --y4: #F2B84B;
+  /* frame accent: slate at rest, recoloured by mood and alert state */
+  --fa: var(--g3); --fb: var(--g4); --fc: var(--g2); --ft: var(--o4);
+  --lfont: Antonio, 'Arial Narrow', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.lcars {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 640px;
+  height: 360px;
+  overflow: hidden;
+  background: #000;
+  color: var(--g6);
+  font-family: var(--lfont);
+  text-transform: uppercase;
+  transform-origin: 0 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.lcars * { box-sizing: border-box; }
+
+.lcars[data-mood=warm] { --fa: #8a4a3a; --fb: #b8664e; --fc: #4a2a24; --ft: var(--o5); }
+.lcars[data-alert=yellow] { --fa: #8f6a2a; --fb: var(--y4); --fc: #4a3a1c; --ft: var(--y4); }
+.lcars[data-alert=red] { --fa: #9a1e12; --fb: var(--o1); --fc: #4a120c; --ft: #FF3B24; }
+
+.zh { text-transform: none; letter-spacing: 0; font-weight: 500; }
+/* Chinese mode: system CJK font, zero tracking. */
+.lcars[lang=zh] { letter-spacing: 0; }
+.lcars[lang=zh] .lb { letter-spacing: 0; }
+
+/* ---------- block button ---------- */
+.lb {
+  position: relative;
+  display: block;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0 7px 3px;
+  background: var(--g4);
+  color: #000;
+  font: 600 15px/1 var(--lfont);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  text-align: right;
+  cursor: pointer;
+  outline: none;
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-appearance: none;
+}
+.lb:active { opacity: .72; }
+.lb[disabled] { opacity: .28; cursor: default; }
+.lb .lb-t { position: absolute; right: 7px; bottom: 4px; }
+.lb .lb-s { position: absolute; left: 7px; top: 4px; font-size: 10px; font-weight: 500; opacity: .75; }
+.lb .lb-dot + .lb-s { left: 13px; }
+.lb .lb-dot { position: absolute; left: 4px; top: 4px; width: 4px; height: 4px; background: #000; }
+.lb.pl { border-radius: 20px 0 0 20px; }
+.lb.pr { border-radius: 0 20px 20px 0; }
+.lb.pr .lb-t { right: 14px; }
+.lb.pl .lb-dot { left: 12px; }
+.lb.pl .lb-s { left: 14px; }
+.lb.pp { border-radius: 999px; text-align: center; }
+.lb.pp .lb-t { right: 0; left: 0; text-align: center; }
+
+.t-g1 { background: var(--g2); color: var(--g5); }
+.t-g2 { background: var(--g3); color: var(--g6); }
+.t-g3 { background: var(--g4); color: #000; }
+.t-g4 { background: var(--g5); color: #000; }
+.t-c1 { background: var(--c1); color: var(--c4); }
+.t-c2 { background: var(--c2); color: var(--c5); }
+.t-c3 { background: var(--c3); color: #000; }
+.t-o3 { background: var(--o4); color: #000; }
+.t-o4 { background: var(--o3); color: #000; }
+.t-r  { background: var(--o2); color: #000; }
+.t-y  { background: var(--y4); color: #000; }
+.t-on { background: #000; color: var(--ft); }
+.t-on::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; right: 0; bottom: 0;
+  border: 2px solid var(--ft);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ---------- text ---------- */
+.cap { font-size: 11px; font-weight: 500; letter-spacing: .05em; color: var(--g5); }
+.lcars[lang=zh] .cap { letter-spacing: 0; }
+.num { font-weight: 300; color: var(--o5); letter-spacing: 0; }
+.dim { opacity: .45; }
+.c-c4 { color: var(--c4); } .c-c5 { color: var(--c5); } .c-o4 { color: var(--o4); } .c-o5 { color: var(--o5); }
+.c-g5 { color: var(--g5); } .c-g6 { color: var(--g6); } .c-y { color: var(--y4); } .c-r { color: #FF5A3C; }
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- lights ---------- */
+.lt-row { display: flex; align-items: center; height: 8px; }
+.lt { width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; background: var(--c3); }
+.lt.gp { margin-left: 5px; }
+
+/* ---------- system state colouring (MSD) ---------- */
+[data-sys] { color: var(--c4); }
+[data-sys=off] { color: var(--g3); opacity: .5; }
+[data-sys=standby] { color: var(--g5); opacity: .7; }
+[data-sys=caution] { color: var(--o4); }
+[data-sys=alert] { color: #FF4A2E; }
+
+/* ---------- one-shot flickers (acknowledgement) ---------- */
+.flk1 { animation: flk1 .4s steps(4) 1; }
+.flk2 { animation: flk2 .7s steps(7) 1; }
+@keyframes flk1 { 0% { opacity: 1 } 25% { opacity: .25 } 50% { opacity: .9 } 75% { opacity: .4 } 100% { opacity: 1 } }
+@keyframes flk2 { 0% { opacity: 1 } 14% { opacity: .1 } 28% { opacity: .8 } 42% { opacity: .2 } 57% { opacity: 1 } 71% { opacity: .3 } 100% { opacity: 1 } }
+
+/* staged reveal: frame first, then structure, content, micro detail. A CSS animation plays
+   whenever an element is inserted (including later v-if branches) and needs no JS timers.
+   The delays are deliberately uneven so the arrival reads engineered, not procedural. */
+.stg { animation: stgIn .42s ease backwards; }
+.stg.sx { animation-name: stgInX; }
+.stg[data-o="1"] { animation-delay: .06s; }
+.stg[data-o="2"] { animation-delay: .34s; }
+.stg[data-o="3"] { animation-delay: .62s; }
+.stg[data-o="4"] { animation-delay: .86s; }
+.stg[data-o="5"] { animation-delay: 1.2s; }
+@keyframes stgIn { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+@keyframes stgInX { from { opacity: 0; transform: translate3d(-14px, 0, 0); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lcars *, .lcars *::after { animation: none !important; transition: none !important; }
+}
+
+/* scroll areas inside the stage */
+.lscroll { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+.lscroll::-webkit-scrollbar { width: 3px; }
+.lscroll::-webkit-scrollbar-thumb { background: var(--g3); }
+
+/* glyph buttons (− / +): the glyph is the label, centred */
+.lb.ctr .lb-t { left: 0; right: 0; top: 50%; bottom: auto; text-align: center; transform: translateY(-55%); font-size: 18px; }

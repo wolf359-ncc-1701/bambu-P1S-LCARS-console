@@ -7,6 +7,7 @@ import {
   LightType,
   PrintSpeedLevel,
 } from './enums'
+import { AMS_DRY_MIN_TEMP, type AMSDryingOptions } from './ams'
 
 export enum PrinterEvent {
   MQTT_STATE_CHANGE = 'mqtt.state_change',
@@ -435,6 +436,47 @@ export class PrinterClient {
         return
     }
     this.requestWithoutResponse('print.gcode_line', { param })
+  }
+
+  /**
+   * Starts filament drying on an AMS 2 Pro / AMS HT unit.
+   * @param amsId AMS unit id.
+   * @param options Drying temperature (°C), duration (hours) and tray rotation.
+   * @returns No return value.
+   */
+  async startAMSDrying(amsId: number, options: AMSDryingOptions) {
+    await this.request('print.ams_filament_drying', {
+      'ams_id': amsId,
+      'mode': 1,
+      'temp': options.temp,
+      'cooling_temp': AMS_DRY_MIN_TEMP,
+      'duration': options.duration,
+      'humidity': 0,
+      'rotate_tray': options.rotateTray ?? false,
+      'close_power_conflict': false,
+    })
+    const ams = this.device.print?.ams?.ams?.find(item => Number(item.id) === amsId)
+    if (ams) ams.dry_time = options.duration * 60
+  }
+
+  /**
+   * Stops filament drying on an AMS unit.
+   * @param amsId AMS unit id.
+   * @returns No return value.
+   */
+  async stopAMSDrying(amsId: number) {
+    await this.request('print.ams_filament_drying', {
+      'ams_id': amsId,
+      'mode': 0,
+      'temp': 0,
+      'cooling_temp': AMS_DRY_MIN_TEMP,
+      'duration': 0,
+      'humidity': 0,
+      'rotate_tray': false,
+      'close_power_conflict': false,
+    })
+    const ams = this.device.print?.ams?.ams?.find(item => Number(item.id) === amsId)
+    if (ams) ams.dry_time = 0
   }
 
   /**

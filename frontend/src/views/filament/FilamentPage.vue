@@ -26,13 +26,19 @@
           :trayPrev="Number(device.ams.tray_pre) ?? -1"
           :popoverAction="handleTrayAction"
         />
-        <span class="ams-name" >AMS-{{ amsPrefix(currentAms.id) }}</span>
+        <span class="ams-name" >
+          {{ amsModelName(currentAms) }}-{{ amsPrefix(currentAms.id) }}
+          <span v-if="isAMSDrying(currentAms)" class="ams-drying">
+            {{ t('drying_in_progress') }} {{ formatDryRemaining(getAMSDryRemaining(currentAms)) }}
+          </span>
+        </span>
         <div class="ams-info">
           <img :src="humIcon(currentAms.humidity)"/>
           <span>{{ currentAms.humidity_raw }}%</span>
-          <span>{{ Math.round(Number(currentAms.temp)).toFixed(0) }}°C</span>
+          <span :style="{ color: isAMSDrying(currentAms) ? 'orange' : undefined }">{{ Math.round(Number(currentAms.temp)).toFixed(0) }}°C</span>
         </div>
-        
+        <AMSDryingPopup v-if="isAMSDryingSupported(currentAms)" v-model:show="showDryingPopup" :ams="currentAms" />
+
       </div>
       <div v-if="device && device.vt_tray" class="ext-card">
         <Tray
@@ -47,6 +53,16 @@
         <span class="ext-name" >{{ t('external_spool') }}</span>
       </div>
       <div class="setting">
+        <button
+          v-if="currentAms && isAMSDryingSupported(currentAms)"
+          type="button"
+          class="drying-btn"
+          :class="{ 'drying-btn-active': isAMSDrying(currentAms) }"
+          @click.stop="showDryingPopup = true"
+        >
+          <i-material-symbols-mode-heat-outline />
+          <span>{{ t('drying') }}</span>
+        </button>
         <van-popover
           v-model:show="showSettingsPopover"
           trigger="manual"
@@ -69,12 +85,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { type DeviceTray } from '@bambulab-p1screen/printer-api'
+import { getAMSDryRemaining, isAMSDrying, isAMSDryingSupported, type DeviceTray } from '@bambulab-p1screen/printer-api'
 import { PopoverAction, showToast } from 'vant'
 import { useRouter } from 'vue-router'
 import { client } from '../../printer'
 import { ROUTE_NAME } from '../../router/routes'
-import { amsPrefix } from '../../utils/ams'
+import { amsModelName, amsPrefix, formatDryRemaining } from '../../utils/ams'
 import { humIcon } from '../../utils/icon'
 import { usePrinterStore } from '../../stores/printer'
 
@@ -85,6 +101,7 @@ const { device } = usePrinterStore()
 const currentAmsId = ref<string | undefined>(device.value && device.value.ams.ams.length > 0 ? device.value.ams.ams[0].id : undefined)
 const currentAms = computed(() => device.value?.ams.ams.find(ams => ams.id === currentAmsId.value))
 const showSettingsPopover = ref(false)
+const showDryingPopup = ref(false)
 const settingsActions: PopoverAction[] = [{ type: 'auto-refill', text: t('auto_refill') }]
 
 watch(device, () => {
@@ -265,10 +282,33 @@ const handleSettingsSelect = (action: PopoverAction) => {
   color: var(--van-text-color-2);
 }
 
+.ams-drying {
+  float: right;
+  margin-right: 26px;
+  color: orange;
+}
+
 .setting {
   position: absolute;
   right: 10px;
   bottom: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.setting .drying-btn {
+  width: auto;
+  padding: 0 10px;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+.setting .drying-btn > span {
+  margin-left: 4px;
+}
+
+.setting .drying-btn-active {
+  color: orange;
 }
 
 .setting button {

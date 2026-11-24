@@ -57,7 +57,7 @@ import { useRouter } from 'vue-router'
 import { connectPrinter } from '../printer'
 import { getCurrentDevice, setCurrentDevice, getDevices } from '../utils/device'
 import { showToast } from 'vant'
-import { ROUTE_NAME } from '../router/routes'
+import { ROUTE_NAME } from '../router/names'
 
 const { t } = useI18n()
 

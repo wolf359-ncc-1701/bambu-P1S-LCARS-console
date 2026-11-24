@@ -86,7 +86,7 @@ import { useI18n } from 'vue-i18n'
 import { showToast } from 'vant'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { client, connectPrinter } from '../../printer'
-import { ROUTE_NAME } from '../../router/routes'
+import { ROUTE_NAME } from '../../router/names'
 import {
   addDevice,
   getCurrentDevice,

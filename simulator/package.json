@@ -1,0 +1,13 @@
+{
+  "name": "bambu-p1s-simulator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "aedes": "0.51.3",
+    "fflate": "^0.8.2",
+    "ws": "^8.18.0"
+  }
+}

@@ -15,7 +15,8 @@ export const getLocalePreference = (): LocalePreference => {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY)
     if (stored === 'zh' || stored === 'en' || stored === 'auto') return stored
   } catch {}
-  return 'auto'
+  // the console opens in English until a language is chosen in Settings
+  return 'en'
 }
 
 export const setLocalePreference = (pref: LocalePreference) => {
@@ -89,6 +90,20 @@ export const messages = {
     color: '颜色',
     external_spool: '外挂料盘',
     auto_refill: '自动续料',
+    drying: '烘干',
+    drying_in_progress: '烘干中',
+    drying_idle: '未烘干',
+    drying_remaining: '剩余时间',
+    drying_current_temp: '当前温度',
+    drying_humidity: '湿度',
+    drying_temp: '烘干温度',
+    drying_duration: '烘干时长',
+    drying_rotate: '烘干时旋转料盘',
+    drying_start: '开始烘干',
+    drying_stop: '停止烘干',
+    drying_started: '已开始烘干',
+    drying_stopped: '已停止烘干',
+    drying_stop_confirm: '确定要停止烘干吗？',
     edit_filament: '编辑耗材',
     filament: '耗材',
     temp_min: '最低',
@@ -276,6 +291,20 @@ export const messages = {
     color: 'Color',
     external_spool: 'External Spool',
     auto_refill: 'Auto Refill',
+    drying: 'Dry',
+    drying_in_progress: 'Drying',
+    drying_idle: 'Not drying',
+    drying_remaining: 'Remaining',
+    drying_current_temp: 'Temperature',
+    drying_humidity: 'Humidity',
+    drying_temp: 'Drying temp',
+    drying_duration: 'Duration',
+    drying_rotate: 'Rotate spools while drying',
+    drying_start: 'Start Drying',
+    drying_stop: 'Stop Drying',
+    drying_started: 'Drying started',
+    drying_stopped: 'Drying stopped',
+    drying_stop_confirm: 'Stop drying now?',
     edit_filament: 'Edit Filament',
     filament: 'Filament',
     temp_min: 'Min',

@@ -81,6 +81,8 @@ export type DeviceAMS = {
   humidity: '1' | '2' | '3' | '4' | '5' // humidity level
   humidity_raw: string // humidity percent
   temp: string // °C
+  info?: string // hex bit field, low nibble is the AMS model
+  dry_time?: number // remaining drying time in minutes (AMS 2 Pro / AMS HT)
   tray: DeviceTray[]
 }
 

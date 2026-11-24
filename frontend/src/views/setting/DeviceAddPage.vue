@@ -217,7 +217,7 @@ import {
   type LoginSuccessResult,
 } from '@bambulab-p1screen/printer-api'
 import { CLOUD_BASE_URLS, CLOUD_MQTT_BROKERS, connectPrinter, createApiUrl, createMqttUrl } from '../../printer'
-import { ROUTE_NAME } from '../../router/routes'
+import { ROUTE_NAME } from '../../router/names'
 import { addDevice, getDevices, removeDevice, setCurrentDevice } from '../../utils/device'
 import { markDeviceListPopupRestore } from '../../utils/navigation'
 import {
