@@ -53,7 +53,7 @@ export const openFtp = async () => {
   return ftp
 }
 
-const download3mf = async (ftp: FTPSClient, subtask?: string, gcodeFile?: string) => {
+export const download3mf = async (ftp: FTPSClient, subtask?: string, gcodeFile?: string) => {
   const names: string[] = []
   const push = (n?: string) => {
     if (!n) return

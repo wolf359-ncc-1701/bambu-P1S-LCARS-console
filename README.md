@@ -69,6 +69,9 @@ Default port: `8888`
 
 Any full-screen web launch method is acceptable. More ideas are welcome.
 
+## Kiosk operation
+Camera viewscreen, standby screen, backlight policy, online web updates, error logs and wireless debugging: see [docs/kiosk.zh.md](docs/kiosk.zh.md) (Chinese).
+
 ## Hardware
 - [P1S Screen Mod - Redmi 2 Direct Power Version](https://makerworld.com.cn/zh/models/2134336)
 - [P1S Screen Mod - iPhone 7/Plus Version](https://makerworld.com.cn/zh/models/1945893)

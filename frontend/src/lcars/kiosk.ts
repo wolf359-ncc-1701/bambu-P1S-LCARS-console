@@ -1,18 +1,23 @@
 /* 7x24 kiosk care. The console is a phone glued beside a printer that runs for weeks:
-   - Backlight: the Android wrapper (P1ScreenBridge) can set the window brightness. While
-     the printer works, an alert is up or someone touched the screen in the last few minutes
-     the system brightness applies; otherwise the panel dims, saving the LCD backlight.
+   - Backlight: the Android wrapper (P1ScreenBridge) sets the window brightness by what the
+     console is doing (see Light below): the system level while someone uses it or an alert
+     is up, about half while a print runs, very low on the standby screen. With the idle
+     sleep option the screen may switch off between jobs; a new job or an alert, or a hand
+     waved over the proximity sensor, switches it back on.
    - Heat: the wrapper reports battery temperature. A hot phone (beside a hot printer) drops
      the effect tier, so the 3D views render slower and the GPU cools down.
    - Effects tier also follows measured frame times, which catches thermal throttling on
      phones without the wrapper.
-   - Errors: uncaught errors land in a small ring buffer shown under Settings → Diagnostics.
+   - Errors: uncaught errors land in a small ring buffer shown under Settings → Diagnostics
+     and are posted to the backend (/api/log), which appends them to a log file on disk.
    Everything degrades to a no-op in a desktop browser. */
 import { reactive } from 'vue'
 
 type Bridge = {
   setBrightness?: (level: number) => void
   getBattery?: () => string
+  setSleepAllowed?: (allowed: boolean) => void
+  wakeScreen?: () => void
 }
 const bridge = (): Bridge | null => ((window as any).P1ScreenBridge ?? null)
 
@@ -24,6 +29,7 @@ export const kiosk = reactive({
   battery: null as null | { level: number, temp: number, plugged: boolean },
   dimmed: false,
   canDim: false,
+  light: 'full' as Light,
   errors: [] as { at: number, msg: string }[],
 })
 
@@ -35,20 +41,61 @@ export const setDimPref = (on: boolean) => {
   if (!on) applyBrightness(false)
 }
 
-/* ---- errors ---- */
-const pushError = (msg: string) => {
+/* ---- errors: kept here, and posted to the backend in small batches ---- */
+let outbox: { at: number, msg: string }[] = []
+let flushTimer = 0
+const flush = () => {
+  flushTimer = 0
+  if (!outbox.length) return
+  const batch = outbox
+  outbox = []
+  const body = JSON.stringify({ build: (window as any).__BUILD_ID__ ?? '', url: location.pathname + location.hash, ua: navigator.userAgent, entries: batch })
+  // keepalive requests are refused above 64 KiB; larger batches go as plain requests
+  const keepalive = body.length < 20000
+  fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive }).catch(() => { /* backend without a log, or offline */ })
+}
+export const logRemote = (msg: string) => {
+  outbox.push({ at: Date.now(), msg: msg.slice(0, 2000) })
+  if (outbox.length > 50) outbox.splice(0, outbox.length - 50)
+  if (!flushTimer) flushTimer = window.setTimeout(flush, 5000)
+}
+const pushError = (msg: string, detail = '') => {
   kiosk.errors.unshift({ at: Date.now(), msg: msg.slice(0, 160) })
   if (kiosk.errors.length > 30) kiosk.errors.length = 30
+  logRemote(detail ? `${msg} | ${detail}` : msg)
 }
 
-/* ---- brightness ---- */
-const DIM_LEVEL = 0.06
-const applyBrightness = (dim: boolean) => {
+/* ---- brightness ----
+   full      someone is here, or an alert: the system brightness
+   print     a print runs, nobody touched the screen lately: about half
+   standby   the standby screen over a running print
+   ambient   the standby screen with no job: as dim as is still readable
+   sleep     the screen may switch off (system timeout) */
+export type Light = 'full' | 'print' | 'standby' | 'ambient' | 'sleep'
+const LEVEL: Record<Light, number> = { full: -1, print: .5, standby: .08, ambient: .035, sleep: .035 }
+let sleeping = false
+export const setLight = (l: Light) => {
   const b = bridge()
-  if (!b?.setBrightness || dim === kiosk.dimmed) return
-  kiosk.dimmed = dim
-  try { b.setBrightness(dim ? DIM_LEVEL : -1) } catch { /* bridge gone */ }
+  if (!dimPref.on) l = 'full'
+  if (l === kiosk.light) return
+  kiosk.light = l
+  kiosk.dimmed = l !== 'full'
+  if (b?.setBrightness) {
+    try { b.setBrightness(LEVEL[l]) } catch { /* bridge gone */ }
+  }
+  const sleep = l === 'sleep'
+  if (sleep !== sleeping && b?.setSleepAllowed) {
+    sleeping = sleep
+    try { b.setSleepAllowed(sleep) } catch { /* bridge gone */ }
+  }
 }
+/* turns a sleeping screen back on (a job started, an alert); harmless when it is on */
+export const wakeScreen = () => {
+  const b = bridge()
+  if (!b?.wakeScreen) return
+  try { b.wakeScreen() } catch { /* bridge gone */ }
+}
+const applyBrightness = (dim: boolean) => setLight(dim ? 'ambient' : 'full')
 
 /* ---- heat ---- */
 const HOT_ON = 42, HOT_OFF = 38
@@ -85,7 +132,9 @@ const retier = () => {
 }
 
 let inited = false
-export const initKiosk = (wantsLight: () => boolean) => {
+let light: () => Light = () => 'full'
+export const initKiosk = (policy: () => Light) => {
+  light = policy
   if (inited) return
   inited = true
   kiosk.canDim = !!bridge()?.setBrightness
@@ -93,15 +142,23 @@ export const initKiosk = (wantsLight: () => boolean) => {
   if (kiosk.canDim) {
     try { bridge()!.setBrightness!(-1) } catch { /* bridge gone */ }
   }
-  window.addEventListener('error', (e) => { pushError(e.message || String(e.error ?? 'error')) })
+  // the native side also keeps "sleep allowed" across a reload: start from not allowed
+  if (bridge()?.setSleepAllowed) {
+    try { bridge()!.setSleepAllowed!(false) } catch { /* bridge gone */ }
+  }
+  window.addEventListener('error', (e) => {
+    const where = e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : ''
+    pushError(e.message || String(e.error ?? 'error'), [where, e.error?.stack ?? ''].filter(Boolean).join(' | '))
+  })
   window.addEventListener('unhandledrejection', (e) => {
     const r = (e as PromiseRejectionEvent).reason
-    pushError(`promise: ${r?.message ?? String(r)}`)
+    pushError(`promise: ${r?.message ?? String(r)}`, r?.stack ?? '')
   })
+  window.addEventListener('pagehide', flush)
   readBattery()
   window.setInterval(() => {
     readBattery()
-    if (dimPref.on && kiosk.canDim) applyBrightness(!wantsLight())
+    if (kiosk.canDim) setLight(light())
   }, 20000)
 }
 

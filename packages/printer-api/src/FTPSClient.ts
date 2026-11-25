@@ -175,12 +175,12 @@ export class FTPSClient {
    * @param remotePath Path of the remote file to read.
    * @returns The file content as a byte array.
    */
-  async downloadContent(remotePath: string): Promise<Uint8Array> {
+  async downloadContent(remotePath: string, onProgress?: (bytes: number) => void): Promise<Uint8Array> {
     const data = await this.openPassiveChannel()
     try {
       const res = await this.sendCommand(`RETR ${remotePath}`)
       if (res.code >= 400) throw new FtpError(res)
-      const bytes = await this.collectBytes(data)
+      const bytes = await this.collectBytes(data, onProgress)
       const complete = await this.waitForResponse()
       if (complete.code >= 400) throw new FtpError(complete)
       return bytes
@@ -344,16 +344,27 @@ export class FTPSClient {
     })
   }
 
-  private collectBytes(data: WebSocket): Promise<Uint8Array> {
+  private collectBytes(data: WebSocket, onProgress?: (bytes: number) => void): Promise<Uint8Array> {
     return new Promise((resolve, reject) => {
       const chunks: Uint8Array[] = []
-      const timer = setTimeout(() => {
-        cleanup()
-        reject(new Error(`[FTPSClient] data channel timeout after ${this.timeout}ms`))
-      }, this.timeout)
+      let received = 0
+      // an idle timeout, not a total one: a large file over a slow link keeps going while bytes arrive
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const arm = () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          cleanup()
+          try { data.close() } catch { /* already closed */ }
+          reject(new Error(`[FTPSClient] data channel idle for ${this.timeout}ms`))
+        }, this.timeout)
+      }
       const cleanup = () => clearTimeout(timer)
+      arm()
       data.addEventListener('message', (event) => {
         chunks.push(new Uint8Array(event.data as ArrayBuffer))
+        received += chunks[chunks.length - 1].length
+        onProgress?.(received)
+        arm()
       })
       data.addEventListener('close', () => {
         cleanup()
@@ -376,13 +387,21 @@ export class FTPSClient {
   private collectText(data: WebSocket): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Uint8Array[] = []
-      const timer = setTimeout(() => {
-        cleanup()
-        reject(new Error(`[FTPSClient] data channel timeout after ${this.timeout}ms`))
-      }, this.timeout)
+      // an idle timeout, not a total one: a large file over a slow link keeps going while bytes arrive
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const arm = () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          cleanup()
+          try { data.close() } catch { /* already closed */ }
+          reject(new Error(`[FTPSClient] data channel idle for ${this.timeout}ms`))
+        }, this.timeout)
+      }
       const cleanup = () => clearTimeout(timer)
+      arm()
       data.addEventListener('message', (event) => {
         chunks.push(new Uint8Array(event.data as ArrayBuffer))
+        arm()
       })
       data.addEventListener('close', () => {
         cleanup()

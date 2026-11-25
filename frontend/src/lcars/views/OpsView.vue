@@ -6,7 +6,7 @@
         v-for="(s, i) in SUBS"
         :key="s.key"
         class="sub-b"
-        :style="{ top: `${i * 38}px` }"
+        :style="{ top: `${i * 33.5}px` }"
         :label="t(`x.o_${s.key}`)"
         :code="s.code"
         :tone="s.tone"
@@ -98,6 +98,28 @@
         <div class="note">{{ t('auto_recovery_desc') }}</div>
       </template>
 
+      <!-- ===== standby, camera and console updates ===== -->
+      <template v-else-if="panel === 'kiosk'">
+        <div class="ph"><span class="lbl">{{ t('x.o_kiosk') }}</span></div>
+        <LToggle class="kt kt0" :on="cam.enabled" :label="t('x.k_cam')" :sub="t('x.k_cam_d')" @toggle="setCamEnabled" />
+        <LToggle class="kt kt1" :on="standby.enabled" :label="t('x.k_standby')" :sub="t('x.k_standby_d')" @toggle="setStandbyEnabled" />
+        <LToggle v-if="canSleep" class="kt kt2" :on="standby.sleepIdle" :label="t('x.k_sleep')" :sub="t('x.k_sleep_d')" :disabled="!standby.enabled" @toggle="setSleepIdle" />
+        <div class="kv ku0">
+          <span class="k">{{ t('x.k_upd_build') }}</span>
+          <span class="v num upd-b">{{ update.build }}</span>
+          <span v-if="update.pending" class="cap c-o4 upd-p">{{ t('x.k_upd_pending') }}</span>
+        </div>
+        <template v-if="hasUpdater">
+          <div class="kv ku1">
+            <span class="k">{{ t('x.k_upd_src') }}</span>
+            <input v-model="originDraft" class="inp num upd-i" spellcheck="false" autocomplete="off" maxlength="80" placeholder="http://192.168.1.10:8889" />
+            <LBtn class="upd-set" :label="t('x.k_upd_set')" tone="g2" shape="pr" @press="saveOrigin" />
+          </div>
+          <div class="upd-s cap ell">{{ nativeLine }}</div>
+          <LBtn class="pa1" :label="t('x.k_upd_check')" tone="c2" shape="pr" dot :disabled="!update.native?.origin" @press="checkNow" />
+        </template>
+      </template>
+
       <!-- ===== interface ===== -->
       <template v-else>
         <div class="ph"><span class="lbl">{{ t('x.o_iface') }}</span><span class="ver"><span class="k">{{ t('x.build') }}</span> <span class="num c-o5">{{ version }}</span></span></div>
@@ -138,6 +160,9 @@ import { usePlant } from '../systems'
 import { setSound, sound } from '../sfx'
 import { dimPref, kiosk, setDimPref } from '../kiosk'
 import { confirmPanel, notice, run } from '../ui'
+import { cam, setCamEnabled } from '../camera'
+import { setSleepIdle, setStandbyEnabled, standby } from '../standby'
+import { checkNative, readNative, setUpdateOrigin, update } from '../update'
 import LBtn from '../components/LBtn.vue'
 import LSeg from '../components/LSeg.vue'
 import LToggle from '../components/LToggle.vue'
@@ -156,6 +181,7 @@ const SUBS = [
   { key: 'diag', code: '55', tone: 'g3' },
   { key: 'proto', code: '56', tone: 'g2' },
   { key: 'iface', code: '57', tone: 'g3' },
+  { key: 'kiosk', code: '58', tone: 'g2' },
 ]
 const PANEL_KEY = 'lcars_ops_panel'
 const readPanel = () => {
@@ -281,6 +307,32 @@ const setNative = (k: 'hide' | 'land' | 'awake', v: boolean) => {
   if (k === 'awake') bridge?.setKeepScreenOn?.(v)
 }
 
+/* ---- standby and updates ---- */
+const canSleep = !!(window as any).P1ScreenBridge?.setSleepAllowed
+const hasUpdater = !!(window as any).P1ScreenBridge?.setWebOrigin
+readNative()
+const originDraft = ref(update.native?.origin ?? '')
+const saveOrigin = () => {
+  const v = originDraft.value.trim().replace(/\/+$/, '')
+  if (v && !/^https?:\/\/[^\s/]+(:\d+)?$/i.test(v)) {
+    notice(t('x.failed', { message: v }), 'o')
+    return
+  }
+  if (setUpdateOrigin(v)) notice(t('x.done'), 'c')
+}
+const checkNow = () => {
+  checkNative()
+  notice(t('x.linking'), 'c')
+  window.setTimeout(readNative, 4000)
+}
+const nativeLine = computed(() => {
+  const n = update.native
+  if (!n) return ''
+  const active = n.active || t('x.k_upd_bundled')
+  const at = n.at ? new Date(n.at).toLocaleTimeString() : ''
+  return [`${t('x.k_upd_build')} ${active}`, n.state, n.error, at].filter(Boolean).join(' • ')
+})
+
 const getDeviceInfo = () => ({ print: device.value ?? null, module: modules.value ?? null })
 const exportInfo = () => {
   if (bridge) {
@@ -338,7 +390,7 @@ onBeforeUnmount(() => {
 .ops { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; }
 .lbl { font-size: 15px; line-height: 17px; font-weight: 600; color: var(--ft); letter-spacing: .03em; }
 .sub { position: absolute; left: 0; top: 0; width: 108px; height: 268px; }
-.sub-b { position: absolute; left: 0; width: 108px; height: 35px; font-size: 14px; }
+.sub-b { position: absolute; left: 0; width: 108px; height: 31px; font-size: 14px; }
 .pane { position: absolute; left: 118px; top: 0; width: calc(414px + var(--xw, 0px)); height: 268px; }
 .ph { height: 24px; }
 .msg { padding: 10px 4px; color: var(--g5); font-size: 14px; text-transform: none; }
@@ -391,6 +443,17 @@ onBeforeUnmount(() => {
 .kstat { position: absolute; left: 0; top: 180px; width: calc(414px + var(--xw, 0px)); font-size: 13px; line-height: 18px; color: var(--g6); }
 .kerr { text-transform: none; color: var(--g5); font-size: 12px; }
 .ver { position: absolute; right: 0; top: 0; font-size: 13px; }
+.kt { position: absolute; left: 0; width: calc(414px + var(--xw, 0px)); }
+.kt0 { top: 26px; }
+.kt1 { top: 64px; }
+.kt2 { top: 102px; }
+.ku0 { position: absolute; left: 0; top: 140px; width: calc(414px + var(--xw, 0px)); }
+.ku1 { position: absolute; left: 0; top: 172px; width: calc(414px + var(--xw, 0px)); }
+.upd-b { font-size: 13px !important; color: var(--o5) !important; text-transform: none; }
+.upd-p { margin-left: 10px; }
+.upd-i { width: calc(196px + var(--xw, 0px)); font-size: 14px; text-transform: none; }
+.upd-set { position: absolute; right: 0; top: 3px; width: 96px; height: 26px; font-size: 13px; }
+.upd-s { position: absolute; left: 0; top: 206px; width: calc(414px + var(--xw, 0px)); color: var(--g5); text-transform: none; }
 .ib1 { position: absolute; left: 0; top: 222px; width: 200px; height: 42px; }
 .ib2 { position: absolute; left: 206px; top: 222px; width: 208px; height: 42px; }
 </style>

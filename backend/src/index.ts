@@ -1,12 +1,17 @@
 import http from 'node:http'
 import path from 'node:path'
 import tls from 'node:tls'
+import fs from 'node:fs'
+import crypto from 'node:crypto'
 import { Readable } from 'node:stream'
 import express from 'express'
 import { WebSocketServer } from 'ws'
 
 const WEB_PORT = Number(process.env.PORT ?? '8889')
 const WEB_ROOT = path.resolve(process.cwd(), 'dist/web')
+const LOG_DIR = path.resolve(process.cwd(), process.env.LOG_DIR ?? 'logs')
+const LOG_MAX_BYTES = 2 * 1024 * 1024
+const EOL = String.fromCharCode(10)
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
   'content-encoding',
@@ -112,10 +117,147 @@ const handleHttpProxy: express.RequestHandler = async (req, res) => {
 
 app.all('/api/https/*', handleHttpProxy)
 
-app.use('/', express.static(WEB_ROOT))
+/* Front-end errors, posted in small batches by the console, appended to logs/frontend.log
+   (one JSON object per line; the file rolls over to frontend.log.1 at 2 MB). */
+const stamp = (at: unknown) => {
+  const d = new Date(Number(at) || Date.now())
+  return (Number.isNaN(d.getTime()) ? new Date() : d).toISOString()
+}
+app.post('/api/log', express.json({ limit: '64kb' }), (req, res) => {
+  const body = req.body ?? {}
+  const entries: { at?: unknown, msg?: unknown }[] = Array.isArray(body.entries)
+    ? body.entries.slice(0, 50).filter((e: unknown) => e !== null && typeof e === 'object')
+    : []
+  if (!entries.length) {
+    res.status(204).end()
+    return
+  }
+  const from = req.socket.remoteAddress ?? ''
+  const lines = entries.map(e => JSON.stringify({
+    at: stamp(e.at),
+    from,
+    build: String(body.build ?? '').slice(0, 64),
+    url: String(body.url ?? '').slice(0, 200),
+    msg: String(e.msg ?? '').slice(0, 2000),
+  })).map(l => `${l}${EOL}`).join('')
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true })
+    const file = path.join(LOG_DIR, 'frontend.log')
+    if (fs.existsSync(file) && fs.statSync(file).size > LOG_MAX_BYTES) fs.renameSync(file, `${file}.1`)
+    fs.appendFileSync(file, lines)
+    res.status(204).end()
+  } catch (err) {
+    console.error('[log] write failed:', err)
+    res.status(500).end()
+  }
+})
+app.get('/api/log', (_req, res) => {
+  const file = path.join(LOG_DIR, 'frontend.log')
+  if (!fs.existsSync(file)) {
+    res.type('text/plain').send('')
+    return
+  }
+  res.type('text/plain').sendFile(file)
+})
+
+// the page polls these to notice a new build; they must never come from a cache
+app.use(['/index.html', '/version.json'], (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store')
+  next()
+})
+app.use('/', express.static(WEB_ROOT, {
+  setHeaders: (res, file) => {
+    if (file.endsWith('index.html')) res.setHeader('Cache-Control', 'no-store')
+  },
+}))
 
 const server = http.createServer(app)
 const tlsProxy = new WebSocketServer({ server, path: '/tls' })
+
+/* ---- camera fan-out ----
+   The printer's camera (TLS port 6000) is weak: it serves one or two clients at most. All
+   viewers of one camera (same host, same login) share a single upstream connection; the
+   backend cuts the stream into frames and sends each complete frame to every viewer, the
+   newest frame at once to a viewer that joins. The upstream closes a few seconds after the
+   last viewer leaves, and when no frame arrives for a while (the clients reconnect). */
+type WsClient = import('ws').WebSocket
+type CamGroup = { key: string, up: tls.TLSSocket, subs: Set<WsClient>, last: Buffer | null, idle?: NodeJS.Timeout, stall?: NodeJS.Timeout }
+const CAM_FRAME_MAX = 4 * 1024 * 1024
+const camGroups = new Map<string, CamGroup>()
+
+const dropGroup = (g: CamGroup, reason: string) => {
+  if (camGroups.get(g.key) !== g) return
+  camGroups.delete(g.key)
+  clearTimeout(g.idle)
+  clearTimeout(g.stall)
+  console.info(`[camera] closing ${g.key.split('|')[0]}: ${reason}`)
+  g.up.destroy()
+  for (const s of g.subs) s.close()
+}
+
+const openGroup = (key: string, host: string, port: number, auth: Buffer): CamGroup => {
+  const up = tls.connect({ host, port, rejectUnauthorized: false })
+  const g: CamGroup = { key, up, subs: new Set(), last: null }
+  camGroups.set(key, g)
+  const armStall = () => {
+    clearTimeout(g.stall)
+    g.stall = setTimeout(() => dropGroup(g, 'no frames'), 20000)
+  }
+  // the watchdog also covers a connect or handshake that never finishes
+  armStall()
+  let buf: Buffer = Buffer.alloc(0)
+  up.on('secureConnect', () => {
+    console.info(`[camera] upstream ${host}:${port} connected`)
+    up.write(auth)
+    armStall()
+  })
+  up.on('data', (chunk: Buffer) => {
+    buf = buf.length ? Buffer.concat([buf, chunk]) : chunk
+    while (buf.length >= 16) {
+      const size = buf.readUInt32LE(0)
+      if (size <= 0 || size > CAM_FRAME_MAX) {
+        dropGroup(g, 'stream out of step')
+        return
+      }
+      if (buf.length < 16 + size) break
+      const frame = buf.subarray(0, 16 + size)
+      buf = buf.subarray(16 + size)
+      g.last = Buffer.from(frame)
+      armStall()
+      for (const s of g.subs) {
+        if (s.readyState === s.OPEN && s.bufferedAmount < 8 * 1024 * 1024) s.send(g.last, { binary: true })
+      }
+    }
+  })
+  up.on('error', err => dropGroup(g, `tls error: ${err.message}`))
+  up.on('close', () => dropGroup(g, 'tls closed'))
+  return g
+}
+
+const joinCamera = (socket: WsClient, host: string, port: number, remote: string) => {
+  // an error before the login would otherwise be unhandled; 'close' follows and cleans up
+  socket.on('error', () => socket.terminate())
+  // the first message is the 80-byte login; viewers with the same login share a stream
+  socket.once('message', (raw: Buffer) => {
+    const auth = Buffer.from(raw)
+    if (auth.length !== 80) {
+      socket.close()
+      return
+    }
+    const key = `${host}:${port}|${crypto.createHash('sha256').update(auth).digest('hex')}`
+    const g = camGroups.get(key) ?? openGroup(key, host, port, auth)
+    clearTimeout(g.idle)
+    g.subs.add(socket)
+    console.info(`[camera][${remote}] joined ${host} (${g.subs.size} viewer(s))`)
+    if (g.last) socket.send(g.last, { binary: true })
+    const leave = () => {
+      if (!g.subs.delete(socket)) return
+      if (!g.subs.size) g.idle = setTimeout(() => dropGroup(g, 'no viewers'), 5000)
+    }
+    socket.on('close', leave)
+    socket.on('error', leave)
+  })
+}
 
 tlsProxy.on('connection', (socket, req) => {
   const remote = req.socket.remoteAddress + ':' + req.socket.remotePort
@@ -148,6 +290,11 @@ tlsProxy.on('connection', (socket, req) => {
   if (!targetHost || Number.isNaN(targetPort) || targetPort <= 0 || targetPort > 65535) {
     console.error(`[tls-proxy][${remote}] invalid target: ${targetUrl.toString()}`)
     socket.close()
+    return
+  }
+
+  if (targetPort === 6000) {
+    joinCamera(socket, targetHost, targetPort, remote)
     return
   }
 

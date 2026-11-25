@@ -4,6 +4,12 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
+import android.os.Build;
+import android.os.PowerManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.webkit.RenderProcessGoneDetail;
 import android.app.Activity;
 import android.content.Intent;
@@ -11,6 +17,8 @@ import android.content.res.Configuration;
 import android.net.Uri;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
+import android.graphics.Bitmap;
 import android.view.WindowManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -64,6 +72,42 @@ public final class MainActivity extends Activity {
   private SharedPreferences prefs;
   private NativeBridge nativeBridge;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
+  private WebUpdater webUpdater;
+  private PowerManager powerManager;
+  private PowerManager.WakeLock cpuLock;
+  private volatile boolean sleepAllowed = false;
+  private SensorManager sensorManager;
+  private Sensor proximity;
+  // proximity wave: far -> near -> far within this window counts as a hand wave
+  private static final long WAVE_MIN_MS = 80;
+  private static final long WAVE_MAX_MS = 1500;
+  private static final long WAVE_COOLDOWN_MS = 2500;
+  private long nearSince = 0;
+  private boolean proximityRegistered = false;
+  private boolean inBackground = false;
+  private long lastWave = 0;
+  private final SensorEventListener proximityListener = new SensorEventListener() {
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+      if (proximity == null) return;
+      boolean near = event.values[0] < Math.min(5f, proximity.getMaximumRange());
+      long now = SystemClock.elapsedRealtime();
+      if (near) {
+        if (nearSince == 0) nearSince = now;
+        return;
+      }
+      long held = nearSince == 0 ? -1 : now - nearSince;
+      nearSince = 0;
+      // a phone face down or a covered sensor stays near: not a wave
+      if (held < WAVE_MIN_MS || held > WAVE_MAX_MS || now - lastWave < WAVE_COOLDOWN_MS) return;
+      lastWave = now;
+      onWave();
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+    }
+  };
 
   @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
   @Override
@@ -78,9 +122,38 @@ public final class MainActivity extends Activity {
       getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
+    powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+    webUpdater = new WebUpdater(getApplicationContext(), prefs, new WebUpdater.Listener() {
+      @Override
+      public void onInstalled(String version) {
+        mainHandler.post(() -> dispatchWebUpdate());
+      }
+
+      @Override
+      public void onRollback(String version) {
+        mainHandler.post(() -> dispatchWebUpdate());
+      }
+    });
+    applyWebOriginExtra(getIntent());
+
     startWebService();
 
     SplashScreen.installSplashScreen(this);
+
+    // the console may switch the screen back on by itself (a job starts, an alert, a wave)
+    if (Build.VERSION.SDK_INT >= 27) {
+      setShowWhenLocked(true);
+    } else {
+      getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
+    }
+    sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+    if (sensorManager != null) {
+      proximity = Build.VERSION.SDK_INT >= 21 ? sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY, true) : null;
+      if (proximity == null) proximity = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+      // registered while the console is in front, and through its own idle sleep, so a
+      // wave also works with the screen off; not while another app is in front
+      registerProximity();
+    }
 
     setContentView(R.layout.activity_main);
 
@@ -127,6 +200,18 @@ public final class MainActivity extends Activity {
       @Override
       public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
         lastBackPressedAt = 0;
+      }
+
+      @Override
+      public void onPageStarted(WebView view, String url, Bitmap favicon) {
+        // a freshly installed build must confirm its boot, or it is rolled back; the clock
+        // starts with the navigation, so a build that never finishes loading is caught too
+        webUpdater.onPageLoaded(() -> mainHandler.post(() -> {
+          if (webView != null) {
+            webView.clearCache(true);
+            webView.reload();
+          }
+        }));
       }
 
       @Override
@@ -178,6 +263,9 @@ public final class MainActivity extends Activity {
   @Override
   protected void onResume() {
     super.onResume();
+    inBackground = false;
+    registerProximity();
+    if (sleepAllowed) applySleepAllowed(true);
     applyFullscreen();
     dispatchAppLifecycleEvent(APP_LIFECYCLE_FOREGROUND);
   }
@@ -185,7 +273,90 @@ public final class MainActivity extends Activity {
   @Override
   protected void onPause() {
     super.onPause();
+    // the screen went off by the console's own idle sleep: stay connected, so a new job
+    // or an alert can switch it back on
+    if (sleepAllowed && !isFinishing() && powerManager != null && !powerManager.isInteractive()) {
+      return;
+    }
+    // really in the background: no waves, and the CPU may sleep
+    inBackground = true;
+    unregisterProximity();
+    if (cpuLock != null && cpuLock.isHeld()) cpuLock.release();
     dispatchAppLifecycleEvent(APP_LIFECYCLE_BACKGROUND);
+  }
+
+  private void registerProximity() {
+    if (proximityRegistered || sensorManager == null || proximity == null) return;
+    nearSince = 0;
+    proximityRegistered = sensorManager.registerListener(proximityListener, proximity, SensorManager.SENSOR_DELAY_NORMAL);
+  }
+
+  private void unregisterProximity() {
+    if (!proximityRegistered || sensorManager == null) return;
+    sensorManager.unregisterListener(proximityListener);
+    proximityRegistered = false;
+  }
+
+  @Override
+  protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    applyWebOriginExtra(intent);
+  }
+
+  /* adb shell am start -n com.bambulab.p1screen/.MainActivity --es webOrigin http://pc:8889 */
+  private void applyWebOriginExtra(Intent intent) {
+    if (intent == null || !intent.hasExtra("webOrigin")) return;
+    // any app on the phone can send this intent: only debug builds accept it (a release
+    // build takes its update source from the settings page)
+    if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+      Log.w(APP_INFO_TAG, "webOrigin extra ignored: not a debug build");
+      return;
+    }
+    webUpdater.setOrigin(intent.getStringExtra("webOrigin"));
+  }
+
+  private void dispatchWebUpdate() {
+    if (webView == null) return;
+    webView.evaluateJavascript("(function(){var h=window.__P1ScreenOnWebUpdate;if(typeof h==='function')h();})()", null);
+  }
+
+  private void onWave() {
+    mainHandler.post(() -> {
+      if (powerManager != null && !powerManager.isInteractive()) {
+        wakeScreenNow();
+      }
+      if (webView != null) {
+        webView.evaluateJavascript("(function(){var h=window.__P1ScreenOnWave;if(typeof h==='function')h();})()", null);
+      }
+    });
+  }
+
+  @SuppressWarnings("deprecation")
+  private void wakeScreenNow() {
+    if (powerManager == null || powerManager.isInteractive()) return;
+    PowerManager.WakeLock lock = powerManager.newWakeLock(
+      PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE,
+      "p1screen:wake");
+    lock.acquire(3000);
+  }
+
+  private void applySleepAllowed(boolean allowed) {
+    sleepAllowed = allowed;
+    if (allowed) {
+      // the system's screen timeout may now switch the screen off; the CPU stays awake
+      // (the phone is on a charger) so the console keeps following the printer
+      getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+      if (cpuLock == null && powerManager != null) {
+        cpuLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "p1screen:follow");
+        cpuLock.setReferenceCounted(false);
+      }
+      if (cpuLock != null && !cpuLock.isHeld() && !inBackground) cpuLock.acquire();
+    } else {
+      if (nativeBridge.getKeepScreenOn()) {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+      }
+      if (cpuLock != null && cpuLock.isHeld()) cpuLock.release();
+    }
   }
 
   @Override
@@ -318,6 +489,40 @@ public final class MainActivity extends Activity {
       }
     }
 
+    /* Idle sleep: true lets the system screen timeout switch the screen off. */
+    @JavascriptInterface
+    public void setSleepAllowed(boolean allowed) {
+      mainHandler.post(() -> {
+        if (!isFinishing() && !isDestroyed()) applySleepAllowed(allowed);
+      });
+    }
+
+    /* Switches a sleeping screen back on; does nothing when it is on. */
+    @JavascriptInterface
+    public void wakeScreen() {
+      mainHandler.post(() -> wakeScreenNow());
+    }
+
+    @JavascriptInterface
+    public void confirmBoot(String build) {
+      webUpdater.confirmBoot(build);
+    }
+
+    @JavascriptInterface
+    public void checkWebUpdate() {
+      webUpdater.check();
+    }
+
+    @JavascriptInterface
+    public String getWebUpdateState() {
+      return webUpdater.stateJson();
+    }
+
+    @JavascriptInterface
+    public void setWebOrigin(String origin) {
+      webUpdater.setOrigin(origin);
+    }
+
     @JavascriptInterface
     public boolean getKeepScreenOn() {
       return prefs.getBoolean(PREF_KEEP_SCREEN_ON, false);
@@ -448,7 +653,7 @@ public final class MainActivity extends Activity {
     }
     try {
       if (webService == null) {
-        webService = new WebService(PORT, getApplicationContext(), this::getDeviceInfoJsonFromWebView);
+        webService = new WebService(PORT, getApplicationContext(), this::getDeviceInfoJsonFromWebView, () -> webUpdater.activeDir());
       }
       webService.start();
     } catch (IOException e) {
@@ -481,6 +686,9 @@ public final class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     mainHandler.removeCallbacksAndMessages(null);
+    unregisterProximity();
+    if (cpuLock != null && cpuLock.isHeld()) cpuLock.release();
+    if (webUpdater != null) webUpdater.shutdown();
     stopWebService();
     if (webView != null) {
       ViewGroup parent = (ViewGroup) webView.getParent();

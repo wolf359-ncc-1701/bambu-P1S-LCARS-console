@@ -99,6 +99,7 @@
     <LRedAlert v-if="redAlert" />
     <LKeypad v-if="ui.keypad.show" />
     <LConfirm v-if="ui.confirm.show" />
+    <LStandby v-if="standby.on" @wake="touched()" />
     <LBoot v-if="booting" @done="booting = false" />
   </div>
 </template>
@@ -117,7 +118,10 @@ import { stage, useStageFit } from './stage'
 import { usePlant } from './systems'
 import { ui } from './ui'
 import { startChamber } from './chamber'
-import { initKiosk, kiosk, wake } from './kiosk'
+import { initKiosk, kiosk, setLight, wake, wakeScreen, type Light } from './kiosk'
+import { AFTER_JOB_MS, STANDBY_AFTER_MS, enterStandby, exitStandby, standby } from './standby'
+import { dropGcode } from './gcode'
+import { initUpdates } from './update'
 import { alertStart, alertStop, initSound, play, voice } from './sfx'
 import { GcodeState } from '@bambulab-p1screen/printer-api'
 import { same } from './i18n'
@@ -127,6 +131,7 @@ import LKeypad from './components/LKeypad.vue'
 import LConfirm from './components/LConfirm.vue'
 import LRedAlert from './components/LRedAlert.vue'
 import LBoot from './components/LBoot.vue'
+import LStandby from './components/LStandby.vue'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -264,8 +269,13 @@ let lastInput = Date.now()
 let autoTimer = 0
 
 let quietHandback = false
+// reactive copy of the last input, coarse (the light policy only needs minutes)
+const lastTouch = ref(Date.now())
+const now = ref(Date.now())
 const touched = (e?: Event) => {
   lastInput = Date.now()
+  if (lastInput - lastTouch.value > 1000) lastTouch.value = lastInput
+  exitStandby()
   wake()
   // a wake-up touch on a control lets the control speak; only a bare touch hands back audibly
   const target = e?.target as Element | null
@@ -281,8 +291,16 @@ const toggleAuto = () => {
 const BOOT_AT = Date.now()
 const REFRESH_AFTER_MS = 12 * 3600 * 1000
 const autoTick = () => {
+  now.value = Date.now()
   if (document.hidden) return
   const idle = Date.now() - lastInput
+  // the standby screen: a few minutes untouched, nothing open, no fresh alert, and not in
+  // the first minutes after a job ended (the console stays up to show how it ended)
+  const afterJob = jobEndAt > 0 && Date.now() - jobEndAt < AFTER_JOB_MS
+  if (standby.enabled && !standby.on && idle > STANDBY_AFTER_MS && !booting.value && !freshAlert.value && !afterJob
+    && !ui.keypad.show && !ui.confirm.show && !route.path.startsWith('/setting/device')) {
+    enterStandby()
+  }
   if (Date.now() - BOOT_AT > REFRESH_AFTER_MS && idle > 600000 && route.path === '/home' && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red') {
     window.location.reload()
     return
@@ -295,6 +313,51 @@ const autoTick = () => {
 }
 
 const booting = ref(true)
+
+/* ---- standby, backlight and screen ----
+   A red alert, or a yellow one in its first ten minutes, keeps the console fully lit and
+   off the standby screen. A job's end lights it for ten minutes, then it may dim or sleep. */
+let yellowSince = 0
+watch(condition, (c, prev) => {
+  if (c === 'yellow' && prev !== 'yellow') yellowSince = Date.now()
+}, { immediate: true })
+const freshAlert = computed(() => {
+  void now.value
+  return condition.value === 'red' || (condition.value === 'yellow' && Date.now() - yellowSince < AFTER_JOB_MS)
+})
+watch(freshAlert, (on) => {
+  if (!on) return
+  exitStandby()
+  wakeScreen()
+})
+let jobEndAt = 0
+let dropTimer = 0
+watch(active, (on, was) => {
+  window.clearTimeout(dropTimer)
+  if (on && !was) {
+    // a job starts: a sleeping screen comes back (to the standby screen if it is up)
+    wakeScreen()
+    return
+  }
+  if (!on && was) {
+    jobEndAt = Date.now()
+    exitStandby()
+    wakeScreen()
+    // the job's G-code is held in memory only while it can still be shown
+    dropTimer = window.setTimeout(dropGcode, AFTER_JOB_MS * 3)
+  }
+})
+const lightPolicy = computed<Light>(() => {
+  const t1 = now.value
+  if (booting.value || freshAlert.value || t1 - lastTouch.value < 300000) return 'full'
+  const afterJob = jobEndAt && t1 - jobEndAt < AFTER_JOB_MS
+  if (standby.on) {
+    if (active.value || afterJob) return 'standby'
+    return standby.sleepIdle ? 'sleep' : 'ambient'
+  }
+  return active.value || afterJob ? 'print' : 'ambient'
+})
+watch(lightPolicy, l => setLight(l))
 
 /* ---- sound: events only, never telemetry ---- */
 // red alert sounds while the emblem is up; acknowledging it silences the klaxon
@@ -349,7 +412,10 @@ onMounted(() => {
   voice.allowed = () => lang.value === 'en'
   initSound(() => autoActive.value || Date.now() - lastInput > 60000)
   // backlight stays up while the printer works, an alert is up or someone was here lately
-  initKiosk(() => active.value || condition.value === 'red' || condition.value === 'yellow' || Date.now() - lastInput < 300000)
+  initKiosk(() => lightPolicy.value)
+  // a hand waved over the proximity sensor counts as a touch (Android shell)
+  ;(window as any).__P1ScreenOnWave = () => touched()
+  initUpdates(() => Date.now() - lastInput > 600000 && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red')
   tickClock()
   clockTimer = window.setInterval(() => { if (!document.hidden) tickClock() }, 1000)
   autoTimer = window.setInterval(autoTick, 5000)
