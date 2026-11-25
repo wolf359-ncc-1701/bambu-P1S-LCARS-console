@@ -1,0 +1,13 @@
+{
+  "name": "@bambulab-p1screen/printer-api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ftps": "./src/FTPSClient.ts"
+  },
+  "dependencies": {
+    "ipaddr.js": "^1.9.1",
+    "mqtt": "^5.10.1"
+  }
+}

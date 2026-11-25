@@ -1,0 +1,128 @@
+:root {
+  --van-primary-color: #C0F473;
+  --van-background: #141414;
+  --van-background-2: #242424;
+  --van-background-3: #333333;
+  --van-background-4: #3C3C3C;
+  --van-background-5: #4A4A4A;
+  
+  --van-text-color: #F0F0F0;
+  --van-text-color-2: #C4C4C4;
+  --van-text-color-3: #9A9A9A;
+
+  --van-active-color: var(--van-background-4);
+  --van-border-color: var(--van-background-4);
+
+  --van-button-default-color: var(--van-text-color);
+  --van-button-default-background: var(--van-background);
+  --van-button-default-border-color: var(--van-background-4);
+  --van-button-plain-background: var(--van-background-4);
+  --van-button-primary-color: var(--van-background);
+  --van-button-primary-background: var(--van-primary-color);
+  
+  --van-cell-group-inset-title-padding: 8px;
+
+  --van-dialog-background: var(--van-background);
+  --van-dialog-confirm-button-text-color: var(--van-text-color);
+  --van-action-sheet-cancel-text-color: var(--van-text-color);
+
+  --van-progress-background: var(--van-background-4);
+  --van-stepper-button-disabled-color: var(--van-background-4);
+  --van-stepper-background: var(--van-background-5);
+
+  --van-checkbox-size: 18px;
+}
+
+.van-checkbox__icon--checked .van-icon {
+  color: var(--van-background);
+}
+
+.van-dialog__message {
+  color: var(--van-text-color-2);
+}
+.van-dialog .van-button {
+  font-size: 14px;
+}
+.van-dialog__cancel {
+  color: var(--van-text-color-3);
+}
+
+.van-empty {
+  padding: 0;
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+select:focus-visible {
+  outline: 0;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--van-background);
+  color: var(--van-text-color);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+  overflow: hidden;
+  height: 100%;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 320px;
+  overflow: hidden;
+}
+
+.card {
+  border: 0;
+  border-radius: 8px;
+  background-color: var(--van-background-2);
+  display: flex;
+}
+
+.card[clickable]:active {
+  filter: brightness(0.8);
+}
+
+@media (min-width: 1024px) {
+  body {
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+
+  #app {
+    width: 800px;
+    height: calc(800px * 9 / 16);
+    border: 10px solid var(--van-background-5);
+    border-radius: 28px;
+    box-shadow:
+      0 0 0 1px var(--van-background-4),
+      0 18px 50px rgba(0, 0, 0, 0.45);
+    background-color: var(--van-background);
+  }
+}

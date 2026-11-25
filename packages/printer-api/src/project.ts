@@ -1,0 +1,33 @@
+export type Project = {
+  param: string
+  project_id: string
+  design_id: string
+  model_id: string
+  profile_id: string
+  plate_idx: string
+  task_id: string
+  subtask_id: string
+  subtask_name: string
+  job_id: number
+  url: string
+  thumbnail_url?: string
+  md5: string
+  timelapse: boolean
+  bed_leveling: boolean
+  flow_cali: boolean
+  vibration_cali: boolean
+  layer_inspect: boolean
+  ams_mapping: number[]
+  skip_objects: any
+  timestamp: number
+  dev_id: string
+  job_type: number
+  use_ams: boolean
+  bed_temp: number
+  auto_bed_leveling: number
+  extrude_cali_flag: number
+  nozzle_offset_cali: number
+  ams_mapping2: any[]
+  cfg: string
+  extrude_cali_manual_mode: number
+}
