@@ -347,13 +347,21 @@ export class FTPSClient {
   private collectBytes(data: WebSocket): Promise<Uint8Array> {
     return new Promise((resolve, reject) => {
       const chunks: Uint8Array[] = []
-      const timer = setTimeout(() => {
-        cleanup()
-        reject(new Error(`[FTPSClient] data channel timeout after ${this.timeout}ms`))
-      }, this.timeout)
+      // an idle timeout, not a total one: a large file over a slow link keeps going while bytes arrive
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const arm = () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          cleanup()
+          try { data.close() } catch { /* already closed */ }
+          reject(new Error(`[FTPSClient] data channel idle for ${this.timeout}ms`))
+        }, this.timeout)
+      }
       const cleanup = () => clearTimeout(timer)
+      arm()
       data.addEventListener('message', (event) => {
         chunks.push(new Uint8Array(event.data as ArrayBuffer))
+        arm()
       })
       data.addEventListener('close', () => {
         cleanup()
@@ -376,13 +384,21 @@ export class FTPSClient {
   private collectText(data: WebSocket): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Uint8Array[] = []
-      const timer = setTimeout(() => {
-        cleanup()
-        reject(new Error(`[FTPSClient] data channel timeout after ${this.timeout}ms`))
-      }, this.timeout)
+      // an idle timeout, not a total one: a large file over a slow link keeps going while bytes arrive
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const arm = () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          cleanup()
+          try { data.close() } catch { /* already closed */ }
+          reject(new Error(`[FTPSClient] data channel idle for ${this.timeout}ms`))
+        }, this.timeout)
+      }
       const cleanup = () => clearTimeout(timer)
+      arm()
       data.addEventListener('message', (event) => {
         chunks.push(new Uint8Array(event.data as ArrayBuffer))
+        arm()
       })
       data.addEventListener('close', () => {
         cleanup()

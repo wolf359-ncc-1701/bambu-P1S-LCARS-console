@@ -138,6 +138,9 @@ export const layerSpan = (ix: GcodeIndex, layer: number): [number, number] | nul
   return [first, next < 0 ? ix.lines - 1 : next - 1]
 }
 
+let retry = { key: '', n: 0 }
+let retryTimer: ReturnType<typeof setTimeout> | undefined
+
 /* Loads the job's G-code once per job. Safe to call often. */
 export const ensureGcode = async (key: string, subtask?: string, gcodeFile?: string) => {
   if (!key || key === gcode.key) return
@@ -200,13 +203,26 @@ export const ensureGcode = async (key: string, subtask?: string, gcodeFile?: str
   } catch (error) {
     if (mine !== loadSeq) return
     console.warn('[gcode]', error)
-    gcode.status = (error as Error)?.message === 'large' ? 'large' : 'error'
+    const large = (error as Error)?.message === 'large'
+    gcode.status = large ? 'large' : 'error'
+    // a slow or busy link fails now and then: try the same job again, waiting longer each time
+    if (!large) {
+      const n = retry.key === key ? retry.n + 1 : 1
+      retry = { key, n }
+      clearTimeout(retryTimer)
+      retryTimer = setTimeout(() => {
+        if (gcode.key !== key || gcode.status !== 'error') return
+        gcode.key = ''
+        ensureGcode(key, subtask, gcodeFile)
+      }, Math.min(30000 * 2 ** (n - 1), 300000))
+    }
   }
 }
 
 /* frees the bytes, e.g. when the job is over */
 export const dropGcode = () => {
   loadSeq++
+  clearTimeout(retryTimer)
   index = null
   gcode.key = ''
   gcode.status = 'none'
