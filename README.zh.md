@@ -70,6 +70,9 @@ docker compose up -d
 
 只要有办法让网页全屏运行即可，其他方案欢迎共同探索。
 
+## 常驻屏运维
+摄像头取景、待机画面、背光、网页在线更新、报错落盘和无线调试见 [docs/kiosk.zh.md](docs/kiosk.zh.md)。
+
 ## 硬件部分
 - [P1S 屏幕改装 - 红米2直供电版](https://makerworld.com.cn/zh/models/2134336)
 - [P1S 屏幕改装 - iPhone7/Plus版](https://makerworld.com.cn/zh/models/1945893)

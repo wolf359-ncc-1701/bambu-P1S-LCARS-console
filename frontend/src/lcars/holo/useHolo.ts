@@ -11,6 +11,7 @@ import { HoloRenderer, hexToRgb, type GroupStyle } from './gl'
 import type { Mesh, V3 } from './mesh'
 import { kiosk, reportFrame } from '../kiosk'
 import { stage } from '../stage'
+import { standby } from '../standby'
 
 export type RGB = [number, number, number]
 export type Palette = Record<'c1' | 'c2' | 'c3' | 'c4' | 'c5' | 'g2' | 'g3' | 'g4' | 'o3' | 'o4' | 'o5' | 'y4' | 'r', RGB>
@@ -79,6 +80,9 @@ export const useHolo = (o: {
   scene: HoloScene
   deps: () => unknown
   onFallback: () => void
+  // drawn on the standby screen (which runs at a low frame rate); every other hologram
+  // stops while standby covers the page
+  standby?: boolean
 }) => {
   const sc = o.scene
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
@@ -107,17 +111,18 @@ export const useHolo = (o: {
 
   const pixelScale = () => {
     const dev = (window.devicePixelRatio || 1) * (stage.scale || 1)
-    return Math.max(1, Math.min(dev, kiosk.tier === 'high' ? 2.5 : 1.25))
+    return Math.max(1, Math.min(dev, kiosk.tier === 'high' && !o.standby ? 2.5 : 1.25))
   }
 
   const frame = (now: number) => {
     raf = 0
     if (!r || r.lost || document.hidden) return
+    if (standby.on !== !!o.standby) return
     const dt = lastTick ? now - lastTick : 16
     lastTick = now
     const anim = !reduced && (reveal < 1 || scanStart >= 0 || sc.animating())
     if (anim) reportFrame(dt)
-    const minGap = kiosk.tier === 'high' ? 0 : 48
+    const minGap = o.standby ? 80 : kiosk.tier === 'high' ? 0 : 48
     if (!dirty && now - lastFrame < minGap) {
       schedule()
       return
@@ -163,7 +168,7 @@ export const useHolo = (o: {
     schedule()
   }
 
-  watch(() => [o.deps(), stage.scale, kiosk.tier], kick, { deep: true })
+  watch(() => [o.deps(), stage.scale, kiosk.tier, standby.on], () => { lastTick = 0; kick() }, { deep: true })
   watch(() => sc.meshKey(), () => { rebuild(); kick() })
 
   const onVisible = () => { if (!document.hidden) { lastTick = 0; kick() } }

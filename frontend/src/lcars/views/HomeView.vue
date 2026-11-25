@@ -1,8 +1,10 @@
 <template>
   <div class="home" :class="{ idle: !printing }" :style="{ '--xa': `${xa}px` }">
-    <!-- ===== the MSD: a cutaway of the printer, every region a system ===== -->
+    <!-- ===== the chamber camera as a viewscreen (LAN mode); tap to enlarge ===== -->
+    <LViewscreen v-if="showCam" class="msd stg" data-o="1" :w="212 + xa" :h="268" :paused="standby.on || camBig" @press="camBig = true" />
+    <!-- ===== without a camera: the MSD, a cutaway of the printer, every region a system ===== -->
     <LHoloPrinter
-      v-if="holo"
+      v-else-if="holo"
       class="msd stg"
       data-o="1"
       :w="212 + xa"
@@ -22,11 +24,11 @@
       @fallback="holo = false"
     />
     <!-- the thumbnail itself, small: the hologram's print is a lathe of this silhouette -->
-    <div v-if="holo && printing && cut && !zoomMounted" class="spec stg" data-o="5">
+    <div v-if="!showCam && holo && printing && cut && !zoomMounted" class="spec stg" data-o="5">
       <img :src="cut.url" alt="" />
       <span>{{ t('x.silhouette') }}</span>
     </div>
-    <svg v-if="!holo" class="msd stg" data-o="1" width="212" height="268" viewBox="0 0 212 268" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true">
+    <svg v-if="!showCam && !holo" class="msd stg" data-o="1" width="212" height="268" viewBox="0 0 212 268" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true">
       <defs>
         <clipPath id="homeFormed"><rect x="20" :y="formedTop" width="170" :height="Math.max(0, BED_Y - formedTop)" /></clipPath>
       </defs>
@@ -163,6 +165,9 @@
       </div>
     </div>
 
+    <!-- the viewscreen enlarged over the whole page; any tap folds it back -->
+    <LViewscreen v-if="camBig" class="cam-big" big :w="532 + stage.wing" :h="268" :paused="standby.on" @press="camBig = false" />
+
     <!-- autopilot event: a level-3 diagnostic of real system states -->
     <div v-if="diag" class="diag">
       <div class="diag-t">{{ t('x.diag_title') }}</div>
@@ -175,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { FanType, GcodeState } from '@bambulab-p1screen/printer-api'
@@ -185,9 +190,8 @@ import hints from '../../assets/hints.json'
 import { ambientAdd, ambientRemove } from '../ambient'
 import { filler } from '../geom'
 import { usePlant, t0, type SysId } from '../systems'
-import { cutModel, useTaskThumbnail, type ModelCut } from '../thumbnail'
 import { amsPrefix } from '../../utils/ams'
-import { chamber, chamberLive } from '../chamber'
+import { chamber } from '../chamber'
 import { same } from '../i18n'
 import { confirmPanel, ui } from '../ui'
 import LBtn from '../components/LBtn.vue'
@@ -197,9 +201,13 @@ import LFdm from '../components/LFdm.vue'
 import LHoloPrinter from '../components/LHoloPrinter.vue'
 import LHoloFdm from '../components/LHoloFdm.vue'
 import { holoSupported } from '../holo/gl'
-import { REF, modelDims } from '../holo/printer'
-import { BED0, BUILD, TIP_Z, project, type Cam } from '../plant3d'
+import { BUILD, type Cam } from '../plant3d'
 import { stage } from '../stage'
+import { FALLBACK_ROWS, usePlantModel } from '../plantModel'
+import { cam } from '../camera'
+import { standby } from '../standby'
+import { getPrinterConnectionMode } from '../../printer'
+import LViewscreen from '../components/LViewscreen.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -219,20 +227,13 @@ const feedTube = ref<SVGPathElement | null>(null)
 const bead = ref<SVGRectElement | null>(null)
 const gantry = ref<SVGRectElement | null>(null)
 
-/* ---- the model: the job's thumbnail with its background removed ---- */
-const thumb = useTaskThumbnail()
-const cut = shallowRef<ModelCut | null>(null)
-watch(() => thumb.url.value, async (u) => {
-  cut.value = null
-  if (!u) return
-  const c = await cutModel(u)
-  if (thumb.url.value === u) cut.value = c
-}, { immediate: true })
-
-/* a plain vase when no thumbnail can be cut out */
-const VASE = [64, 70, 74, 76, 76, 74, 70, 64, 58, 54, 52, 52, 54, 58, 60, 60, 56, 48, 40, 34, 30, 28, 26, 22].reverse()
-const fallbackRows: [number, number][] = VASE.map(w => [(1 - w / 76) / 2, 1 - (1 - w / 76) / 2])
-const rows = computed(() => cut.value?.rows ?? fallbackRows)
+/* ---- the model and the hologram's props, shared with the standby screen ---- */
+const {
+  cut, rows, formed, trayNow, modelColor, pods, tick,
+  heaterLinked, heaterLive, heaterSys, chamberValue,
+  holoModel, holoBedZ, holoStates, holoShow, holoModelColor, holoSpools, holoCards, trace,
+} = usePlantModel()
+const fallbackRows = FALLBACK_ROWS
 const size = computed(() => {
   const w = cut.value?.w ?? 76, h = cut.value?.h ?? 86
   const k = Math.min(MAX_W / w, MAX_H / h)
@@ -248,43 +249,9 @@ const fallbackPath = computed(() => {
   return `M${left.join(' L')} L${mx.value + fallbackRows[n - 1][0] * mw.value} ${mh.value} L${right.join(' L')} Z`
 })
 
-/* formed fraction: by layers when known, else by percent */
-const formed = computed(() => {
-  const p = device.value
-  if (!printing.value || !p) return 0
-  if (p.gcode_state === GcodeState.Finish) return 1
-  const total = p.total_layer_num || 0
-  return Math.min(1, total ? (p.layer_num ?? 0) / total : (p.mc_percent ?? 0) / 100)
-})
 const formedTop = computed(() => BED_Y - formed.value * mh.value)
 
-/* tray_now arrives as a string and may be "" before the AMS reports */
-const trayNow = computed(() => {
-  const raw = device.value?.ams?.tray_now
-  const n = raw === undefined || raw === null || (raw as unknown) === '' ? NaN : Number(raw)
-  return Number.isFinite(n) ? n : 255
-})
-const modelColor = computed(() => {
-  const now = trayNow.value
-  if (now === 254) return device.value?.vt_tray?.tray_color ? `#${device.value.vt_tray.tray_color.slice(0, 6)}` : 'var(--c4)'
-  const ams = device.value?.ams?.ams?.find(a => Number(a.id) === Math.floor(now / 4))
-  const c = ams?.tray?.[now % 4]?.tray_color
-  return c ? `#${c.slice(0, 6)}` : 'var(--c4)'
-})
 const layerLabel = computed(() => `${t('x.zoom_layer')} 0.20`)
-
-const pods = computed(() => {
-  const ams = device.value?.ams?.ams?.[0]
-  const now = trayNow.value
-  return [0, 1, 2, 3].map((i) => {
-    const tray = ams?.tray?.[i]
-    return {
-      color: tray?.tray_color ? `#${tray.tray_color.slice(0, 6)}` : 'var(--g2)',
-      loaded: !!tray?.tray_type,
-      active: ams ? Number(ams.id) * 4 + i === now : false,
-    }
-  })
-})
 
 /* ---- the hologram (WebGL); the SVG cutaway above stays as the fallback ---- */
 const holo = ref(holoSupported())
@@ -292,41 +259,21 @@ const D2R = Math.PI / 180
 // a wide screen gives half its extra width to the hologram, half to the readouts
 const xa = computed(() => Math.floor(stage.wing / 2))
 const homeCam = computed<Cam>(() => ({ yaw: -34 * D2R, pitch: 22 * D2R, s: .27 + xa.value / 1400, ox: 106 + xa.value / 2, oy: 140 }))
-const holoShape = computed(() => ({ rows: rows.value, aspect: (cut.value?.w || 76) / (cut.value?.h || 86) }))
-const holoModel = computed(() => (printing.value ? holoShape.value : null))
-const holoBedZ = computed(() => (printing.value ? formed.value * modelDims(holoShape.value).hm : 20))
 // mutated by the trace loop; the page itself never re-renders for it
 const holoTool = reactive({ x: BUILD / 2, y: BUILD / 2 })
 const holoTrace = (now: number) => {
-  const list = rows.value
-  if (!list.length) return
-  const idx = Math.max(0, Math.min(list.length - 1, Math.floor((1 - formed.value) * list.length)))
-  const [l, r] = list[idx]
-  const { wm } = modelDims(holoShape.value)
-  const k = .5 - .5 * Math.cos(now / 900 * Math.PI)
-  const xw = REF + ((l + (r - l) * k) - .5) * wm
-  holoTool.x = xw - BED0
-  holoTool.y = BUILD / 2 + Math.sin(now / 1300) * Math.min(30, (r - l) * wm * .3)
-  const [px, py] = project(homeCam.value, [xw, BED0 + holoTool.y, TIP_Z])
+  const [px, py] = trace(now, holoTool, homeCam.value)
   headX = px
   headY = py
 }
-const holoStates = computed(() => ({ core: sys.value.core, pad: sys.value.pad, stores: sys.value.stores, chamber: sys.value.chamber, heater: heaterSys.value }))
-const holoShow = computed(() => ({ ams: !!device.value?.ams?.ams?.length, heater: heaterLinked.value, rings: true }))
-const holoModelColor = computed(() => (modelColor.value.startsWith('#') ? modelColor.value : ''))
-const holoSpools = computed(() => pods.value.map(p => ({ color: p.color.startsWith('#') ? p.color : '#67CAF0', loaded: p.loaded, active: p.active })))
-const tone = (s: string) => (s === 'caution' ? 'y' : s === 'alert' ? 'o' : s === 'nominal' ? 'c' : 'g') as 'c' | 'o' | 'y' | 'g'
-const holoCards = computed(() => {
-  const p = device.value
-  return [
-    { label: t('x.hc_core'), value: `${t0(p?.nozzle_temper)}°`, tone: tone(sys.value.core) },
-    { label: t('x.hc_pad'), value: `${t0(p?.bed_temper)}°`, tone: tone(sys.value.pad) },
-    { label: t('x.hc_bay'), value: chamberValue.value, tone: tone(heaterSys.value) },
-    printing.value
-      ? { label: t('x.hc_layer'), value: `${p?.layer_num ?? 0}/${p?.total_layer_num ?? 0}`, tone: 'o' as const }
-      : { label: t('x.hc_layer'), value: '—', tone: 'g' as const },
-  ]
+
+/* ---- the camera takes the hologram's place in LAN mode ---- */
+const camBig = ref(false)
+const showCam = computed(() => {
+  void device.value // re-read the link mode with each report
+  return cam.enabled && getPrinterConnectionMode() === 'local'
 })
+watch(showCam, (on) => { if (!on) camBig.value = false })
 
 /* ---- readouts ---- */
 const taskName = computed(() => device.value?.subtask_name || t('x.unnamed'))
@@ -337,8 +284,6 @@ const remaining = computed(() => {
   if (locale.value.startsWith('zh')) return h ? `${h}时${String(mm).padStart(2, '0')}分` : `${mm}分`
   return h ? `${h}H${String(mm).padStart(2, '0')}M` : `${mm}M`
 })
-/* a slow clock for things that age without a push: ETA while paused, heater silence */
-const tick = ref(Date.now())
 const eta = computed(() => {
   const d = new Date(tick.value + (device.value?.mc_remaining_time ?? 0) * 60000)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -354,23 +299,6 @@ const feedLabel = computed(() => {
   const ams = device.value?.ams?.ams?.find(a => Number(a.id) === Math.floor(now / 4))
   const tray = ams?.tray?.[now % 4]
   return `${amsPrefix(String(Math.floor(now / 4)))}${(now % 4) + 1} ${tray?.tray_type ?? ''}`
-})
-
-const heaterLinked = computed(() => !!chamber.config.mac)
-const heaterLive = computed(() => {
-  void tick.value
-  void chamber.seen
-  return chamberLive()
-})
-const heaterSys = computed(() => {
-  if (!heaterLive.value) return 'off'
-  if (chamber.stopped) return 'standby'
-  return chamber.relay ? 'caution' : 'nominal'
-})
-const chamberValue = computed(() => {
-  if (!heaterLinked.value) return '—'
-  if (!heaterLive.value) return '--°'
-  return `${chamber.temp.toFixed(1)}°`
 })
 
 const blocks = computed(() => {
@@ -479,7 +407,7 @@ const clearZoom = () => {
 const scheduleZoom = (delay: number) => {
   clearZoom()
   zoomTimers.push(window.setTimeout(() => {
-    if (!running.value || document.hidden || diag.value) {
+    if (!running.value || document.hidden || diag.value || showCam.value) {
       scheduleZoom(6000)
       return
     }
@@ -524,20 +452,21 @@ const runDiag = () => {
 }
 const scheduleDiag = () => {
   diagTimer = window.setTimeout(() => {
-    if (ui.autoActive && !document.hidden && !zoomMounted.value) runDiag()
+    if (ui.autoActive && !document.hidden && !zoomMounted.value && !camBig.value) runDiag()
     scheduleDiag()
   }, 47000 + Math.random() * 60000)
 }
 watch(() => ui.autoActive, (on) => {
-  if (on) return
+  if (on) {
+    camBig.value = false
+    return
+  }
   clearDiagSteps()
   diag.value = false
 })
 
-let tickTimer = 0
 let readyTimer = 0
 onMounted(() => {
-  tickTimer = window.setInterval(() => { if (!document.hidden) tick.value = Date.now() }, 15000)
   readyTimer = window.setInterval(() => { if (!document.hidden && !printing.value) readyIdx.value++ }, 11000)
   if (scan.value) {
     // an optical scan: twelve stepped rows down the hull, then a pause off-screen
@@ -549,7 +478,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (scan.value) ambientRemove(scan.value)
   window.cancelAnimationFrame(raf)
-  window.clearInterval(tickTimer)
   window.clearInterval(readyTimer)
   clearZoom()
   window.clearTimeout(diagTimer)
@@ -568,6 +496,8 @@ onBeforeUnmount(() => {
 .spec { position: absolute; left: 2px; top: 2px; width: 54px; }
 .spec img { display: block; width: 46px; height: 46px; object-fit: contain; border-left: 3px solid var(--c3); padding-left: 3px; background: rgba(0, 0, 0, .6); }
 .spec span { display: block; margin-top: 1px; font-size: 8px; line-height: 9px; color: var(--g5); letter-spacing: .04em; }
+
+.cam-big { position: absolute; left: 0; top: 0; z-index: 3; }
 
 .zoom {
   position: absolute;

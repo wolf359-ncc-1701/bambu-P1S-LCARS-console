@@ -37,6 +37,7 @@ const props = withDefaults(defineProps<{
   turntable?: number // seconds per turn; 0 = still
   scanEvery?: number // ms between scan sweeps; 0 = only after the build-up
   cards?: Card[]
+  standby?: boolean // drawn on the standby screen
 }>(), {
   tool: () => ({ x: BUILD / 2, y: BUILD / 2 }),
   bedZ: 20,
@@ -51,6 +52,7 @@ const props = withDefaults(defineProps<{
   turntable: 0,
   scanEvery: 0,
   cards: () => [],
+  standby: false,
 })
 const emit = defineEmits<{ (e: 'fallback'): void }>()
 
@@ -146,6 +148,7 @@ const holo = useHolo({
   size: () => ({ w: props.w, h: props.h }),
   deps: () => [props.cam, props.tool.x, props.tool.y, props.bedZ, props.states, props.fans, props.focus, props.progress, props.modelColor, props.spools, props.turntable, props.w, props.h, props.cards],
   onFallback: () => emit('fallback'),
+  standby: props.standby,
   scene: {
     meshKey: () => JSON.stringify([props.show.ams, props.show.heater, props.show.rings, props.model?.rows.length, props.model?.aspect, props.model?.rows[0], props.model?.rows[Math.floor((props.model?.rows.length ?? 0) / 2)]]),
     build: () => buildPrinter({ ams: props.show.ams, heater: props.show.heater, rings: props.show.rings, model: props.model }),

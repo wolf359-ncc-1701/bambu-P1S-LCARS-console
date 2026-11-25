@@ -86,7 +86,7 @@ const zh = {
   dir_root: '根目录', dir_cache: '缓存',
 
   // operations
-  o_vessel: '设备', o_comms: '连接', o_soft: '固件', o_diag: '校准', o_proto: '打印选项', o_iface: '界面', o_chamber: '仓温',
+  o_vessel: '设备', o_comms: '连接', o_soft: '固件', o_diag: '校准', o_proto: '打印选项', o_kiosk: '待机与更新', o_iface: '界面', o_chamber: '仓温',
   registry: '设备列表', register: '添加设备', edit_device: '编辑', status: '状态', channel: '通道', address: '地址',
   signal: '信号', storage: '存储卡', mounted: '已插入', unmounted: '未插入', relink: '重新连接',
   no_data: '无数据', cal_level: '热床调平', cal_res: '振动补偿', cal_motor: '电机降噪',
@@ -97,6 +97,19 @@ const zh = {
   hide_bar: '横屏隐藏状态栏', land_lock: '强制横屏', awake: '保持亮屏', export: '导出设备信息', check_update: '检查更新',
   rev_available: '有新版本', sound: '提示音', sound_d: '按键、打印事件与警报的提示音，音量较低',
   linking: '正在连接', vessel_selected: '已切换设备',
+
+  // camera, standby, maintenance
+  cam_title: '打印仓摄像头', cam_live: '实时', cam_slow: '画面延迟', cam_link: '连接中', cam_retry: '{s} 秒后重连', cam_cloud_s: '仅局域网',
+  cam_off: '已关闭', cam_none: '没有画面', cam_disabled: '摄像头已在设置中关闭', cam_cloud: '摄像头只能在局域网模式下查看',
+  cam_nodev: '没有设备地址或访问码', cam_retrying: '连接断开，稍后自动重连', cam_wait: '等待第一帧画面',
+  sb_wake: '轻触唤醒', sb_est: '位置为估算', sb_gcode: 'G-code', sb_line: '行',
+  sb_gc_cloud: 'G-code 只能在局域网模式下读取', sb_gc_loading: '正在下载打印文件', sb_gc_indexing: '正在建立索引 {p}%',
+  sb_gc_large: '打印文件太大，不显示 G-code', sb_gc_error: '读取打印文件失败', sb_gc_nolayer: '文件中没有找到当前层', sb_gc_wait: '等待打印文件',
+  k_cam: '首页显示摄像头', k_cam_d: '局域网模式下首页显示打印仓画面，否则显示三维模型',
+  k_standby: '待机画面', k_standby_d: '3 分钟无操作后显示待机画面并调低亮度',
+  k_sleep: '空闲时熄屏', k_sleep_d: '没有打印任务时待机画面改为熄屏，开始打印或报警时自动亮屏',
+  k_upd: '网页更新', k_upd_src: '更新来源', k_upd_none: '未设置', k_upd_check: '立即检查', k_upd_set: '设置来源',
+  k_upd_build: '当前版本', k_upd_pending: '有新版本，空闲时自动刷新', k_upd_bundled: '安装包内置',
 
   // alerts
   alert_none: '没有告警', alert_loading: '读取告警库', alert_scan: '扫码查看处理方法', alert_nosel: '未选择记录',
@@ -183,7 +196,7 @@ const en: Messages = {
   print_body: 'START PRINTING {name}? MAKE SURE THE PAD IS CLEAR.', commenced: 'REPLICATION COMMENCED',
   dir_root: 'ROOT', dir_cache: 'CACHE',
 
-  o_vessel: 'VESSEL', o_comms: 'COMMS', o_soft: 'SOFTWARE', o_diag: 'DIAGNOSTIC', o_proto: 'PROTOCOLS', o_iface: 'INTERFACE', o_chamber: 'ATMOSPHERE',
+  o_vessel: 'VESSEL', o_comms: 'COMMS', o_soft: 'SOFTWARE', o_diag: 'DIAGNOSTIC', o_proto: 'PROTOCOLS', o_kiosk: 'STANDBY', o_iface: 'INTERFACE', o_chamber: 'ATMOSPHERE',
   registry: 'VESSEL REGISTRY', register: 'REGISTER VESSEL', edit_device: 'EDIT', status: 'STATUS', channel: 'CHANNEL', address: 'ADDRESS',
   signal: 'SIGNAL', storage: 'DATA STORE', mounted: 'MOUNTED', unmounted: 'NOT MOUNTED', relink: 'RE-ESTABLISH LINK',
   no_data: 'NO DATA', cal_level: 'PAD SURVEY', cal_res: 'RESONANCE SWEEP', cal_motor: 'MOTOR NOISE',
@@ -194,6 +207,18 @@ const en: Messages = {
   hide_bar: 'STATUS BAR SUPPRESSION', land_lock: 'LANDSCAPE LOCK', awake: 'DISPLAY PERSISTENCE', export: 'EXPORT TELEMETRY', check_update: 'CHECK REVISION',
   rev_available: 'REVISION AVAILABLE', sound: 'AUDIO', sound_d: 'CONSOLE TONES FOR PRESSES, PRINT EVENTS AND ALERTS',
   linking: 'LINKING', vessel_selected: 'VESSEL SELECTED',
+
+  cam_title: 'CHAMBER VISUAL', cam_live: 'LIVE', cam_slow: 'DELAYED', cam_link: 'LINKING', cam_retry: 'RETRY {s}S', cam_cloud_s: 'LAN ONLY',
+  cam_off: 'OFFLINE', cam_none: 'NO VISUAL', cam_disabled: 'Camera switched off in Operations', cam_cloud: 'The camera is only reachable in LAN mode',
+  cam_nodev: 'No printer address or access code', cam_retrying: 'Link lost, retrying', cam_wait: 'Waiting for the first frame',
+  sb_wake: 'TOUCH TO WAKE', sb_est: 'POSITION ESTIMATED', sb_gcode: 'G-CODE', sb_line: 'LINE',
+  sb_gc_cloud: 'G-code is only readable in LAN mode', sb_gc_loading: 'Fetching the job file', sb_gc_indexing: 'Indexing {p}%',
+  sb_gc_large: 'Job file too large to show', sb_gc_error: 'Could not read the job file', sb_gc_nolayer: 'Current layer not found in the file', sb_gc_wait: 'Waiting for the job file',
+  k_cam: 'CAMERA ON HOME', k_cam_d: 'IN LAN MODE THE HOME PAGE SHOWS THE CHAMBER; OTHERWISE THE HOLOGRAM',
+  k_standby: 'STANDBY SCREEN', k_standby_d: 'AFTER 3 MINUTES UNTOUCHED: STANDBY SCREEN, LOW BACKLIGHT',
+  k_sleep: 'SLEEP WHEN IDLE', k_sleep_d: 'WITH NO JOB THE SCREEN TURNS OFF; A JOB OR AN ALERT WAKES IT',
+  k_upd: 'CONSOLE UPDATES', k_upd_src: 'SOURCE', k_upd_none: 'NOT SET', k_upd_check: 'CHECK NOW', k_upd_set: 'SET SOURCE',
+  k_upd_build: 'BUILD', k_upd_pending: 'NEW BUILD • RELOADS WHEN IDLE', k_upd_bundled: 'BUNDLED',
 
   alert_none: 'NO ALERT CONDITIONS', alert_loading: 'LOADING DATABASE', alert_scan: 'SCAN FOR THE FIX', alert_nosel: 'NO RECORD SELECTED',
   alert_ack: 'ACKNOWLEDGE', alert_log: 'ALERT LOG', red_alert: 'ALERT', condition_red: 'CONDITION: RED',

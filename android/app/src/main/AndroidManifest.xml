@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
   <uses-permission android:name="android.permission.INTERNET" />
+  <!-- idle sleep: keep following the printer with the screen off, and switch it back on -->
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
 
   <application
     android:icon="@drawable/app_icon"
