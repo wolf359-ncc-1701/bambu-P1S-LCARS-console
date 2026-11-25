@@ -91,6 +91,26 @@ export const usePlant = () => {
   return { device, modules, connected, systems, condition, printing, active }
 }
 
+/* When the job ends (ms since epoch), or 0 when there is none to show.
+   While a job runs it is now + the printer's remaining time. Once it has finished it stays at
+   the time last seen while it ran, instead of following the clock; when the page opened after
+   the job ended there is no such time. */
+let lastEta = 0
+export const etaAt = (now: number, p: DevicePrint | undefined): number => {
+  const st = p?.gcode_state
+  if (st === GcodeState.Running || st === GcodeState.Pause || st === GcodeState.Prepare || st === GcodeState.Slicing) {
+    lastEta = now + (p?.mc_remaining_time ?? 0) * 60000
+    return lastEta
+  }
+  if ((st === GcodeState.Finish || st === GcodeState.Failed) && lastEta) {
+    // the first report after the end fixes it: no later than the moment the end was seen
+    lastEta = Math.min(lastEta, now)
+    return lastEta
+  }
+  lastEta = 0
+  return 0
+}
+
 /* Short real-number formatting for readouts. */
 export const t0 = (v: number | undefined) => String(Math.floor(Number(v ?? 0)))
 export const pad2 = (n: number) => String(n).padStart(2, '0')

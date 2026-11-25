@@ -80,7 +80,7 @@ const zh = {
   // library
   records: '打印文件', on_file: '个文件', reindex: '刷新', lib_offline: '文件列表需要局域网连接',
   lib_empty: '打印机存储中没有可打印文件', accessing: '读取中', scanning_pattern: '读取预览',
-  too_large: '文件太大，不读预览', no_preview: '无预览', select_record: '选择一个文件', size: '大小', plate: '盘',
+  too_large: '文件较大 • 点按读取预览', no_preview: '无预览', preview_fail: '预览读取失败 • 点按重试', select_record: '选择一个文件', size: '大小', plate: '盘',
   use_ams: '使用 AMS', bed_level: '热床调平', commence: '开始打印', print_title: '开始打印',
   print_body: '将在打印机上开始打印 {name}。请确认热床上没有物体。', commenced: '已开始打印',
   dir_root: '根目录', dir_cache: '缓存',
@@ -191,7 +191,7 @@ const en: Messages = {
 
   records: 'PATTERN RECORDS', on_file: 'ON FILE', reindex: 'RE-INDEX', lib_offline: 'LIBRARY ACCESS NEEDS A LOCAL NET LINK',
   lib_empty: 'NO PATTERNS ON FILE', accessing: 'ACCESSING LIBRARY', scanning_pattern: 'SCANNING PATTERN',
-  too_large: 'PATTERN TOO LARGE TO SCAN', no_preview: 'NO PREVIEW', select_record: 'SELECT A RECORD', size: 'SIZE', plate: 'PLATE',
+  too_large: 'LARGE PATTERN • TAP TO SCAN', no_preview: 'NO PREVIEW', preview_fail: 'SCAN FAILED • TAP TO RETRY', select_record: 'SELECT A RECORD', size: 'SIZE', plate: 'PLATE',
   use_ams: 'AMS FEED', bed_level: 'PAD SURVEY', commence: 'COMMENCE REPLICATION', print_title: 'COMMENCE REPLICATION',
   print_body: 'START PRINTING {name}? MAKE SURE THE PAD IS CLEAR.', commenced: 'REPLICATION COMMENCED',
   dir_root: 'ROOT', dir_cache: 'CACHE',

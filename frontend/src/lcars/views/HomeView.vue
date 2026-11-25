@@ -189,7 +189,7 @@ import { usePrintState } from '../printStatus'
 import hints from '../../assets/hints.json'
 import { ambientAdd, ambientRemove } from '../ambient'
 import { filler } from '../geom'
-import { usePlant, t0, type SysId } from '../systems'
+import { etaAt, usePlant, t0, type SysId } from '../systems'
 import { amsPrefix } from '../../utils/ams'
 import { chamber } from '../chamber'
 import { same } from '../i18n'
@@ -285,7 +285,9 @@ const remaining = computed(() => {
   return h ? `${h}H${String(mm).padStart(2, '0')}M` : `${mm}M`
 })
 const eta = computed(() => {
-  const d = new Date(tick.value + (device.value?.mc_remaining_time ?? 0) * 60000)
+  const at = etaAt(tick.value, device.value)
+  if (!at) return '—'
+  const d = new Date(at)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 })
 const fanCount = computed(() => {

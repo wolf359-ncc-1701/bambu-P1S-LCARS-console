@@ -71,7 +71,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { usePlant, t0 } from '../systems'
+import { etaAt, usePlant, t0 } from '../systems'
 import { usePrintState } from '../printStatus'
 import { usePlantModel } from '../plantModel'
 import { stage } from '../stage'
@@ -109,7 +109,9 @@ const remaining = computed(() => {
   return h ? `${h}H${two(mm)}M` : `${mm}M`
 })
 const eta = computed(() => {
-  const d = new Date(now.value.getTime() + (device.value?.mc_remaining_time ?? 0) * 60000)
+  const at = etaAt(now.value.getTime(), device.value)
+  if (!at) return '—'
+  const d = new Date(at)
   return `${two(d.getHours())}:${two(d.getMinutes())}`
 })
 const linkLine = computed(() => {

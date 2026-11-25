@@ -31,9 +31,17 @@
     </div>
 
     <div class="det stg" data-o="3">
-      <div class="view">
+      <div
+        class="view"
+        :class="{ tap: canRetry }"
+        :role="canRetry ? 'button' : undefined"
+        :tabindex="canRetry ? 0 : undefined"
+        @click="retryPreview"
+        @keydown.enter.prevent="retryPreview"
+        @keydown.space.prevent="retryPreview"
+      >
         <img v-if="detail.thumb" :src="detail.thumb" alt="" />
-        <div v-else class="view-m cap">{{ detail.state === 'loading' ? t('x.scanning_pattern') : sel ? (detail.state === 'big' ? t('x.too_large') : t('x.no_preview')) : t('x.select_record') }}</div>
+        <div v-else class="view-m cap">{{ viewText }}</div>
         <svg class="ret" width="128" height="112" aria-hidden="true">
           <path d="M2 18 V2 H18 M110 2 H126 V18 M126 94 V110 H110 M18 110 H2 V94" fill="none" stroke="var(--c3)" stroke-width="2" />
           <line x1="64" y1="0" x2="64" y2="8" stroke="var(--c3)" />
@@ -80,9 +88,13 @@ const files = ref<Rec[]>([])
 const state = ref<'idle' | 'loading' | 'ok' | 'error'>('idle')
 const error = ref('')
 const sel = ref<Rec | null>(null)
-const detail = reactive({ thumb: '', plate: '1', state: 'idle' as 'idle' | 'loading' | 'ok' | 'big' | 'none' })
+const detail = reactive({ thumb: '', plate: '1', state: 'idle' as 'idle' | 'loading' | 'ok' | 'big' | 'none' | 'fail', pct: 0 })
 const opts = reactive({ ams: true, level: true })
-const PREVIEW_LIMIT = 8 * 1024 * 1024
+// above this a preview waits for a tap: over a slow link a large file takes minutes
+const PREVIEW_LIMIT = 16 * 1024 * 1024
+// previews already read, by path and size, so going back to a file is instant
+const previews = new Map<string, { thumb: string, plate: string }>()
+const previewKey = (f: Rec) => `${f.path}|${f.size}`
 
 // only sliced projects: a bare .gcode needs a different print command than project_file
 const printable = (f: FTPFileInfo) => !f.isDirectory && /\.3mf$/i.test(f.name)
@@ -116,34 +128,60 @@ const refresh = async () => {
 let seq = 0
 // one preview download at a time: a new selection closes the previous FTPS session
 let previewFtp: { close: () => void } | null = null
-const select = async (f: Rec) => {
+const select = async (f: Rec, force = false) => {
   previewFtp?.close()
   previewFtp = null
+  const mine = ++seq
   sel.value = f
-  Object.assign(detail, { thumb: '', plate: '1', state: 'idle' })
+  Object.assign(detail, { thumb: '', plate: '1', state: 'idle', pct: 0 })
   if (!/\.3mf$/i.test(f.name)) return
-  if (f.size > PREVIEW_LIMIT) {
+  const known = previews.get(previewKey(f))
+  if (known) {
+    Object.assign(detail, { thumb: known.thumb, plate: known.plate, state: known.thumb ? 'ok' : 'none' })
+    return
+  }
+  if (f.size > PREVIEW_LIMIT && !force) {
     detail.state = 'big'
     return
   }
-  const mine = ++seq
   detail.state = 'loading'
   let ftp
   try {
     ftp = await openFtp()
     if (mine !== seq) return
     previewFtp = ftp
-    const data = await ftp.downloadContent(f.path)
+    const data = await ftp.downloadContent(f.path, (n) => {
+      if (mine === seq && f.size > 0) detail.pct = Math.min(99, Math.floor((n / f.size) * 100))
+    })
     if (mine !== seq) return
     const info = await read3mf(data)
     if (mine !== seq) return
+    previews.set(previewKey(f), { thumb: info.thumbnail, plate: info.plate })
+    if (previews.size > 64) previews.delete(previews.keys().next().value!)
     Object.assign(detail, { thumb: info.thumbnail, plate: info.plate, state: info.thumbnail ? 'ok' : 'none' })
-  } catch {
-    if (mine === seq) detail.state = 'none'
+  } catch (e) {
+    console.warn('[library] preview', e)
+    if (mine === seq) detail.state = 'fail'
   } finally {
     ftp?.close()
+    if (previewFtp === ftp) previewFtp = null
   }
 }
+
+// a failed or skipped preview is read on a tap
+const canRetry = computed(() => !!sel.value && (detail.state === 'fail' || detail.state === 'big'))
+const retryPreview = () => {
+  if (canRetry.value && sel.value) select(sel.value, true)
+}
+const viewText = computed(() => {
+  if (!sel.value) return t('x.select_record')
+  switch (detail.state) {
+    case 'loading': return detail.pct > 0 ? `${t('x.scanning_pattern')} ${detail.pct}%` : t('x.scanning_pattern')
+    case 'big': return t('x.too_large')
+    case 'fail': return t('x.preview_fail')
+    default: return t('x.no_preview')
+  }
+})
 
 const starting = ref(false)
 const commence = async () => {
@@ -234,6 +272,8 @@ onBeforeUnmount(() => {
 .view { position: absolute; left: 0; top: 0; width: calc(128px + var(--xw, 0px) * .45); height: 112px; background: var(--g1); }
 .view img { position: absolute; left: 10px; top: 6px; width: calc(108px + var(--xw, 0px) * .45); height: 100px; object-fit: contain; }
 .view-m { position: absolute; left: 8px; right: 8px; top: 46px; text-align: center; }
+.view.tap { cursor: pointer; }
+.view.tap .view-m { color: var(--o5); }
 .ret { position: absolute; left: 0; top: 0; }
 .d-n { position: absolute; left: calc(136px + var(--xw, 0px) * .45); top: 0; width: 86px; font-size: 14px; line-height: 16px; color: var(--o5); text-transform: none; white-space: normal; max-height: 60px; }
 .d-r { position: absolute; left: calc(136px + var(--xw, 0px) * .45); top: 66px; width: 86px; line-height: 13px; }
