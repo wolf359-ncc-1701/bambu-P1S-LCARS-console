@@ -78,7 +78,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
 </script>
 
 <style scoped>
-.boot { position: absolute; left: 0; top: 0; width: 640px; height: 360px; background: #000; z-index: 20; opacity: 1; transition: opacity .3s ease; }
+.boot { position: absolute; left: 0; top: 0; width: 100%; height: 360px; background: #000; z-index: 20; opacity: 1; transition: opacity .3s ease; }
 .boot.out { opacity: 0; }
 .boot-frame { position: absolute; left: 110px; top: 85px; }
 .boot-card { position: absolute; left: 150px; top: 100px; width: 370px; }

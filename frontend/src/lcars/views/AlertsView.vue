@@ -65,8 +65,8 @@ onMounted(() => { loadHms() })
 </script>
 
 <style scoped>
-.al { position: relative; width: 532px; height: 268px; }
-.list { position: absolute; left: 0; top: 0; width: 300px; height: 268px; }
+.al { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; }
+.list { position: absolute; left: 0; top: 0; width: calc(300px + var(--xw, 0px) * .6); height: 268px; }
 .none { padding: 12px 4px; }
 .none-t { font-size: 22px; font-weight: 300; color: var(--c4); }
 .rec { position: relative; display: block; width: 100%; height: 44px; margin: 0 0 3px; border: 0; padding: 0; background: var(--g1); text-align: left; font-family: var(--lfont); cursor: pointer; outline: none; }
@@ -76,8 +76,8 @@ onMounted(() => { loadHms() })
 .lv1 .rec-sl { background: #FF3B24; }
 .lv2 .rec-sl { background: var(--o3); }
 .rec-c { position: absolute; left: 14px; top: 3px; font-size: 14px; color: var(--o5); letter-spacing: .06em; }
-.rec-t { position: absolute; left: 14px; top: 21px; width: 278px; font-size: 13px; line-height: 17px; color: var(--g6); text-transform: none; }
-.det { position: absolute; left: 312px; top: 0; width: 220px; height: 268px; }
+.rec-t { position: absolute; left: 14px; top: 21px; width: calc(278px + var(--xw, 0px) * .6); font-size: 13px; line-height: 17px; color: var(--g6); text-transform: none; }
+.det { position: absolute; left: calc(312px + var(--xw, 0px) * .6); top: 0; width: calc(220px + var(--xw, 0px) * .4); height: 268px; }
 .qr { display: block; width: 104px; height: 104px; image-rendering: pixelated; }
 .d-c { margin-top: 8px; font-size: 18px; color: var(--o5); letter-spacing: .04em; }
 .d-t { margin-top: 4px; font-size: 13px; line-height: 17px; text-transform: none; color: var(--g6); max-height: 96px; overflow: hidden; }

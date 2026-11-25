@@ -100,17 +100,22 @@
 
       <!-- ===== interface ===== -->
       <template v-else>
-        <div class="ph"><span class="lbl">{{ t('x.o_iface') }}</span></div>
+        <div class="ph"><span class="lbl">{{ t('x.o_iface') }}</span><span class="ver"><span class="k">{{ t('x.build') }}</span> <span class="num c-o5">{{ version }}</span></span></div>
         <div class="langs">
           <span class="k">{{ t('x.language') }}</span>
           <LBtn v-for="(l, i) in LANGS" :key="l.v" class="lang" :style="{ left: `${86 + i * 84}px` }" :label="l.label || t('x.lang_auto')" tone="g2" shape="pp" :active="langPref === l.v" @press="setLang(l.v)" />
         </div>
+        <LToggle class="if0" :on="soundOn" :label="t('x.sound')" :sub="t('x.sound_d')" @toggle="toggleSound" />
         <template v-if="bridge">
-          <LToggle class="if1" :on="native.hide" :label="t('x.hide_bar')" @toggle="setNative('hide', $event)" />
-          <LToggle class="if2" :on="native.land" :label="t('x.land_lock')" @toggle="setNative('land', $event)" />
-          <LToggle class="if3" :on="native.awake" :label="t('x.awake')" @toggle="setNative('awake', $event)" />
+          <LToggle class="if1" compact :on="native.hide" :label="t('x.hide_bar')" @toggle="setNative('hide', $event)" />
+          <LToggle class="if2" compact :on="native.land" :label="t('x.land_lock')" @toggle="setNative('land', $event)" />
+          <LToggle class="if3" compact :on="native.awake" :label="t('x.awake')" @toggle="setNative('awake', $event)" />
+          <LToggle v-if="kiosk.canDim" class="if4" compact :on="dimPref.on" :label="t('x.k_dim')" @toggle="setDimPref" />
         </template>
-        <div class="ver"><span class="k">{{ t('x.build') }}</span> <span class="num c-o5">{{ version }}</span></div>
+        <div class="kstat">
+          <div><span class="k">{{ t('x.k_fx') }}</span> <span :class="kiosk.tier === 'high' ? 'c-c4' : 'c-y'">{{ t(kiosk.tier === 'high' ? 'x.k_fx_full' : 'x.k_fx_low') }}</span><template v-if="kiosk.battery"> <span class="k">{{ t('x.k_batt') }}</span> <span class="num" :class="kiosk.hot ? 'c-y' : 'c-o5'">{{ kiosk.battery.temp.toFixed(1) }}°</span> <span class="num c-g5">{{ kiosk.battery.level }}%</span></template></div>
+          <div class="ell"><span class="k">{{ t('x.k_err') }}</span> <span class="num" :class="kiosk.errors.length ? 'c-y' : 'c-g5'">{{ kiosk.errors.length }}</span> <span v-if="kiosk.errors[0]" class="kerr">{{ kiosk.errors[0].msg }}</span></div>
+        </div>
         <LBtn v-if="device" class="ib1" :label="t('x.export')" tone="g3" shape="pl" @press="exportInfo" />
         <LBtn v-if="bridge" class="ib2" :label="t('x.check_update')" tone="c2" shape="pr" @press="checkUpdate" />
       </template>
@@ -130,6 +135,8 @@ import { getCurrentDevice, getDevices, setCurrentDevice } from '../../utils/devi
 import { getLocalePreference, setLocalePreference, type LocalePreference } from '../../i18n'
 import { MAC_RE, brokerUrl, chamber as ch, chamberLive, saveChamberConfig, type ChamberBroker } from '../chamber'
 import { usePlant } from '../systems'
+import { setSound, sound } from '../sfx'
+import { dimPref, kiosk, setDimPref } from '../kiosk'
 import { confirmPanel, notice, run } from '../ui'
 import LBtn from '../components/LBtn.vue'
 import LSeg from '../components/LSeg.vue'
@@ -245,6 +252,11 @@ const LANGS: { v: LocalePreference, label: string }[] = [
   { v: 'en', label: 'ENGLISH' },
 ]
 const langPref = ref(getLocalePreference())
+const soundOn = ref(sound.on)
+const toggleSound = (on: boolean) => {
+  soundOn.value = on
+  setSound(on)
+}
 const setLang = (v: LocalePreference) => {
   langPref.value = v
   setLocalePreference(v)
@@ -323,23 +335,23 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.ops { position: relative; width: 532px; height: 268px; }
+.ops { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; }
 .lbl { font-size: 15px; line-height: 17px; font-weight: 600; color: var(--ft); letter-spacing: .03em; }
 .sub { position: absolute; left: 0; top: 0; width: 108px; height: 268px; }
 .sub-b { position: absolute; left: 0; width: 108px; height: 35px; font-size: 14px; }
-.pane { position: absolute; left: 118px; top: 0; width: 414px; height: 268px; }
+.pane { position: absolute; left: 118px; top: 0; width: calc(414px + var(--xw, 0px)); height: 268px; }
 .ph { height: 24px; }
 .msg { padding: 10px 4px; color: var(--g5); font-size: 14px; text-transform: none; }
 .k { font-size: 13px; color: var(--g5); letter-spacing: .04em; }
 
-.roster { position: absolute; left: 0; top: 26px; width: 414px; height: 188px; }
+.roster { position: absolute; left: 0; top: 26px; width: calc(414px + var(--xw, 0px)); height: 188px; }
 .ship { position: relative; height: 42px; margin-bottom: 4px; }
-.ship-m { position: absolute; left: 0; top: 0; width: 318px; height: 42px; border: 0; padding: 0 8px; background: var(--g1); text-align: left; font-family: var(--lfont); cursor: pointer; outline: none; }
+.ship-m { position: absolute; left: 0; top: 0; width: calc(318px + var(--xw, 0px)); height: 42px; border: 0; padding: 0 8px; background: var(--g1); text-align: left; font-family: var(--lfont); cursor: pointer; outline: none; }
 .ship-m:active { opacity: .72; }
 .ship.cur .ship-m { background: var(--c1); border-left: 6px solid var(--c3); }
 .ship-n { display: block; font-size: 16px; line-height: 19px; color: var(--g6); text-transform: none; padding-top: 3px; }
 .ship-s { display: block; font-size: 11px; line-height: 14px; color: var(--g5); letter-spacing: .04em; }
-.ship-e { position: absolute; left: 322px; top: 0; width: 92px; height: 42px; }
+.ship-e { position: absolute; left: calc(322px + var(--xw, 0px)); top: 0; width: 92px; height: 42px; }
 .pa1 { position: absolute; left: 194px; top: 222px; width: 220px; height: 42px; font-size: 16px; }
 
 .kv { position: relative; display: flex; align-items: center; height: 32px; border-bottom: 1px solid var(--g1); }
@@ -353,7 +365,7 @@ onBeforeUnmount(() => {
 .br.b2 { left: 210px; }
 .mac-bad { position: absolute; left: 0; top: 190px; }
 
-.tbl { position: absolute; left: 0; top: 26px; width: 414px; height: 240px; }
+.tbl { position: absolute; left: 0; top: 26px; width: calc(414px + var(--xw, 0px)); height: 240px; }
 .tr { position: relative; height: 32px; border-bottom: 1px solid var(--g1); font-size: 14px; line-height: 32px; }
 .td1 { position: absolute; left: 0; width: 150px; color: var(--g6); }
 .td2 { position: absolute; left: 156px; font-size: 16px; }
@@ -365,16 +377,20 @@ onBeforeUnmount(() => {
 .node { position: absolute; left: 0; width: 260px; }
 .cal-state { position: absolute; left: 270px; top: 102px; width: 144px; color: var(--c4); font-size: 13px; }
 
-.row1 { position: absolute; left: 0; top: 28px; width: 414px; }
-.note { position: absolute; left: 0; top: 72px; width: 400px; text-transform: none; line-height: 17px; font-size: 13px; color: var(--g5); }
+.row1 { position: absolute; left: 0; top: 28px; width: calc(414px + var(--xw, 0px)); }
+.note { position: absolute; left: 0; top: 72px; width: calc(400px + var(--xw, 0px)); text-transform: none; line-height: 17px; font-size: 13px; color: var(--g5); }
 
-.langs { position: absolute; left: 0; top: 26px; width: 414px; height: 30px; }
+.langs { position: absolute; left: 0; top: 26px; width: calc(414px + var(--xw, 0px)); height: 30px; }
 .langs .k { position: absolute; left: 0; top: 8px; }
 .lang { position: absolute; top: 0; width: 80px; height: 30px; font-size: 14px; }
-.if1 { position: absolute; left: 0; top: 64px; width: 414px; }
-.if2 { position: absolute; left: 0; top: 102px; width: 414px; }
-.if3 { position: absolute; left: 0; top: 140px; width: 414px; }
-.ver { position: absolute; left: 0; top: 186px; font-size: 14px; }
+.if0 { position: absolute; left: 0; top: 64px; width: calc(414px + var(--xw, 0px)); }
+.if1 { position: absolute; left: 0; top: 102px; width: calc(205px + var(--xw, 0px) / 2); }
+.if2 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 102px; width: calc(205px + var(--xw, 0px) / 2); }
+.if3 { position: absolute; left: 0; top: 140px; width: calc(205px + var(--xw, 0px) / 2); }
+.if4 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 140px; width: calc(205px + var(--xw, 0px) / 2); }
+.kstat { position: absolute; left: 0; top: 180px; width: calc(414px + var(--xw, 0px)); font-size: 13px; line-height: 18px; color: var(--g6); }
+.kerr { text-transform: none; color: var(--g5); font-size: 12px; }
+.ver { position: absolute; right: 0; top: 0; font-size: 13px; }
 .ib1 { position: absolute; left: 0; top: 222px; width: 200px; height: 42px; }
 .ib2 { position: absolute; left: 206px; top: 222px; width: 208px; height: 42px; }
 </style>

@@ -9,6 +9,7 @@
       :width="pitch - gap"
       :height="h"
       :fill="i <= lit ? colorAt(i) : off"
+      :class="{ lead: pulse && i === lit && lit < n }"
     />
     <rect
       v-if="targetCell > 0"
@@ -35,6 +36,7 @@ const props = withDefaults(defineProps<{
   color?: string
   hot?: string
   off?: string
+  pulse?: boolean
 }>(), {
   target: 0,
   n: 20,
@@ -44,6 +46,7 @@ const props = withDefaults(defineProps<{
   color: 'var(--c3)',
   hot: '',
   off: 'var(--g1)',
+  pulse: false,
 })
 
 const pitch = computed(() => props.w / props.n)
@@ -54,4 +57,7 @@ const colorAt = (i: number) => (props.hot && i > props.n * .6 ? props.hot : prop
 
 <style scoped>
 .seg { display: block; }
+/* the leading lit cell breathes in steps while work is in progress */
+.lead { animation: lead .7s step-end infinite; }
+@keyframes lead { 0% { opacity: 1 } 50% { opacity: .55 } }
 </style>

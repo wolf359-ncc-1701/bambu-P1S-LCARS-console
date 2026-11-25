@@ -2,8 +2,24 @@
   <!-- The toolhead, exploded like an MSD: the matter injector (extruder) on top, the warp core
        (hot end) below it, the replication pad (bed) underneath drawing power from the core.
        Each part leads out to its own controls at the same height. -->
-  <div class="th">
-    <svg class="msd stg" data-o="1" width="532" height="238" viewBox="0 0 532 238" aria-hidden="true">
+  <div class="th" :style="{ '--xh': `${xh}px` }">
+    <LHoloThermal
+      v-if="holo"
+      class="stg"
+      data-o="1"
+      :w="196 + xh"
+      :h="238"
+      :nozzle="Number(p?.nozzle_temper ?? 0)"
+      :nozzle-target="coreTarget"
+      :bed="Number(p?.bed_temper ?? 0)"
+      :bed-target="padTarget"
+      :feed="feedSeq"
+      :feed-dir="feedDir"
+      :color="filColor"
+      :leaders="holoLeaders"
+      @fallback="holo = false"
+    />
+    <svg v-else class="msd stg" data-o="1" width="532" height="238" viewBox="0 0 532 238" aria-hidden="true">
       <!-- leaders: part → controls, right angles -->
       <g fill="none" stroke-width="1.2">
         <path :data-sys="injSys" d="M134 26 H200" />
@@ -71,7 +87,7 @@
     <div class="pres core-p stg" data-o="3">
       <LBtn v-for="(pr, i) in CORE_PRESETS" :key="pr.k" class="pre" :style="{ left: `${(i % 2) * 58}px`, top: `${Math.floor(i / 2) * 25}px` }" :label="pr.k === 'off' ? t('x.off') : `${pr.k} ${pr.v}`" :tone="Number(p?.nozzle_target_temper) === pr.v ? 'o3' : 'g2'" shape="pp" @press="setNozzle(pr.v)" />
     </div>
-    <LSlider class="sld core-s stg" data-o="3" :value="Number(p?.nozzle_temper ?? 0)" :target="coreTarget" :max="300" :w="216" :n="30" :aria="t('x.core_set')" @commit="setNozzle" />
+    <LSlider class="sld core-s stg" data-o="3" :value="Number(p?.nozzle_temper ?? 0)" :target="coreTarget" :max="300" :w="216 + xh" :n="30" :aria="t('x.core_set')" @commit="setNozzle" />
     <LBtn class="sb core-m ctr stg" data-o="3" label="−" tone="g2" @press="setNozzle(Math.max(0, coreTarget - 5))" />
     <LBtn class="sb core-pl ctr stg" data-o="3" label="+" tone="g3" @press="setNozzle(Math.min(300, coreTarget + 5))" />
     <LBtn class="sb core-k stg" data-o="3" label="123" :aria="t('x.keypad')" tone="o4" shape="pr" @press="keyNozzle" />
@@ -86,7 +102,7 @@
     <div class="pres pad-p stg" data-o="3">
       <LBtn v-for="(pr, i) in PAD_PRESETS" :key="pr.k" class="pre" :style="{ left: `${(i % 2) * 58}px`, top: `${Math.floor(i / 2) * 25}px` }" :label="pr.k === 'off' ? t('x.off') : `${pr.k} ${pr.v}`" :tone="Number(p?.bed_target_temper) === pr.v ? 'o3' : 'g2'" shape="pp" @press="setBed(pr.v)" />
     </div>
-    <LSlider class="sld pad-s stg" data-o="3" :value="Number(p?.bed_temper ?? 0)" :target="padTarget" :max="110" :w="216" :n="22" color="var(--c3)" :aria="t('x.pad_set')" @commit="setBed" />
+    <LSlider class="sld pad-s stg" data-o="3" :value="Number(p?.bed_temper ?? 0)" :target="padTarget" :max="110" :w="216 + xh" :n="22" color="var(--c3)" :aria="t('x.pad_set')" @commit="setBed" />
     <LBtn class="sb pad-m ctr stg" data-o="3" label="−" tone="g2" @press="setBed(Math.max(0, padTarget - 5))" />
     <LBtn class="sb pad-pl ctr stg" data-o="3" label="+" tone="g3" @press="setBed(Math.min(110, padTarget + 5))" />
     <LBtn class="sb pad-k stg" data-o="3" label="123" :aria="t('x.keypad')" tone="o4" shape="pr" @press="keyBed" />
@@ -99,17 +115,39 @@ import { useI18n } from 'vue-i18n'
 import { GcodeState, TemperatureType } from '@bambulab-p1screen/printer-api'
 import { client } from '../../../printer'
 import { refreshPrinter } from '../../../stores/printer'
+import { play } from '../../sfx'
 import { ambientAdd, ambientRemove } from '../../ambient'
 import { usePlant, t0 } from '../../systems'
 import { keypad, notice, run } from '../../ui'
 import LBtn from '../../components/LBtn.vue'
 import LSlider from '../../components/LSlider.vue'
+import LHoloThermal from '../../components/LHoloThermal.vue'
+import { holoSupported } from '../../holo/gl'
+import { stage } from '../../stage'
 import { same } from '../../i18n'
 
 const { t } = useI18n()
 const { device: p, systems } = usePlant()
 
 const CELLS = 18
+
+/* hologram: half of a wide screen's extra width goes to the drawing, half to the sliders */
+const holo = ref(holoSupported())
+const xh = computed(() => Math.floor(stage.wing / 2))
+const feedSeq = ref(0)
+const feedDir = ref(1)
+const filColor = computed(() => {
+  const now = Number(p.value?.ams?.tray_now ?? 255)
+  if (now === 254) return p.value?.vt_tray?.tray_color ? `#${p.value.vt_tray.tray_color.slice(0, 6)}` : ''
+  const ams = p.value?.ams?.ams?.find(a => Number(a.id) === Math.floor(now / 4))
+  const c = ams?.tray?.[now % 4]?.tray_color
+  return c ? `#${c.slice(0, 6)}` : ''
+})
+const holoLeaders = computed(() => [
+  { part: 'ext' as const, x: 200 + xh.value, y: 26, sys: injSys.value },
+  { part: 'block' as const, x: 200 + xh.value, y: 112, sys: coreSys.value },
+  { part: 'bed' as const, x: 200 + xh.value, y: 206, sys: padSys.value },
+])
 const coreSys = computed(() => systems.value.core)
 const padSys = computed(() => systems.value.pad)
 const cold = computed(() => (p.value?.nozzle_temper ?? 0) < 170)
@@ -209,15 +247,23 @@ const keyBed = async () => {
 const extrude = (step: number) => {
   if (cold.value) {
     notice(t('x.core_cold'), 'r')
+    play('deny')
+    play('voice:unable')
     return
   }
+  feedDir.value = step > 0 ? 1 : -1
+  feedSeq.value++
   const gcode = `M211 S\nM211 X1 Y1 Z1\nM1002 push_ref_mode\nM83\nG1 E${step} F150\nM1002 pop_ref_mode\nM211 R\n`
   run(t(step > 0 ? 'x.extrude' : 'x.retract'), () => client.request('print.gcode_line', { param: gcode }), fail)
 }
 </script>
 
 <style scoped>
-.th { position: relative; width: 532px; height: 238px; }
+.th { position: relative; width: calc(532px + var(--xw, 0px)); height: 238px; --xh: 0px; }
+/* controls move right by the drawing's share; sliders and their buttons take the rest */
+.hd, .read, .pres, .sld, .inj-b { margin-left: var(--xh); }
+.sb { margin-left: calc(var(--xh) * 2); }
+.pres, .inj-b.b1, .inj-b.b2 { margin-left: calc(var(--xh) * 2); }
 .msd { position: absolute; left: 0; top: 0; }
 .msd path[data-sys] { stroke: currentColor; }
 .tiny { font: 500 10px var(--lfont); fill: var(--g4); letter-spacing: .06em; }
@@ -234,7 +280,7 @@ const extrude = (step: number) => {
 
 .inj-h { top: 6px; width: 108px; }
 .inj-b { position: absolute; top: 4px; height: 40px; font-size: 14px; }
-.inj-b.b1 { left: 316px; width: 106px; }
+.inj-b.b1 { left: 316px; width: calc(106px + var(--xh)); margin-left: var(--xh) !important; }
 .inj-b.b2 { left: 426px; width: 106px; }
 
 .core-h { top: 54px; width: 210px; }

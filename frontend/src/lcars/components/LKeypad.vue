@@ -32,13 +32,14 @@
           class="kp-key"
           :style="{ left: `${(i % 3) * 64}px`, top: `${Math.floor(i / 3) * 46}px` }"
           :label="key === '<' ? `◂ ${t('x.del')}` : key"
+          :sound="key === '<' ? 'cancel' : ''"
           :tone="key === '<' ? 'g2' : 'g3'"
           @press="press(key)"
         />
       </div>
 
-      <LBtn class="kp-cancel" :label="t('x.cancel')" tone="g2" shape="pl" @press="cancel" />
-      <LBtn class="kp-ok" :label="t('x.set')" tone="o3" shape="pr" :disabled="!canSet" @press="ok" />
+      <LBtn class="kp-cancel" sound="cancel" :label="t('x.cancel')" tone="g2" shape="pl" @press="cancel" />
+      <LBtn class="kp-ok" sound="set" :label="t('x.set')" tone="o3" shape="pr" :disabled="!canSet" @press="ok" />
     </div>
   </div>
 </template>
@@ -49,6 +50,7 @@ import { useI18n } from 'vue-i18n'
 import { closeKeypad, ui } from '../ui'
 import { elbow } from '../geom'
 import LBtn from './LBtn.vue'
+import { play } from '../sfx'
 
 const { t } = useI18n()
 const k = ui.keypad
@@ -61,6 +63,8 @@ const outOfRange = computed(() => k.value !== '' && (Number(k.value) < k.min || 
 const canSet = computed(() => k.value !== '' && !outOfRange.value)
 
 const press = (key: string) => {
+  // each digit has its own pitch, like a real keypad
+  if (key !== '<') play('key', { rate: .92 + Number(key) * .02 })
   if (key === '<') k.value = k.value.slice(0, -1)
   else if (k.value === '0') k.value = key
   else if (k.value.length < k.maxLen) k.value += key
@@ -81,7 +85,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <style scoped>
-.ovl { position: absolute; left: 0; top: 0; z-index: 10; width: 640px; height: 360px; background: rgba(0, 0, 0, .82); }
+.ovl { position: absolute; left: 0; top: 0; z-index: 10; width: 100%; height: 360px; background: rgba(0, 0, 0, .82); }
 .kp { position: absolute; left: 104px; top: 76px; width: 532px; height: 268px; background: #000; }
 .kp-frame { position: absolute; left: 0; top: 0; }
 .kf { fill: var(--fb); }

@@ -5,7 +5,7 @@ import { i18n } from './i18n'
 import { client, connectPrinter } from './printer'
 import { lcarsRoutes } from './lcars/routes'
 import { lcarsMessages } from './lcars/i18n'
-import { vAmb } from './lcars/ambient'
+import { vAmb, vTick } from './lcars/ambient'
 import { getCurrentDevice } from './utils/device'
 import './styles/theme.css'
 import './lcars/lcars.css'
@@ -89,6 +89,7 @@ i18n.global.mergeLocaleMessage('en', lcarsMessages.en)
 
 createApp(LcarsApp)
   .directive('amb', vAmb)
+  .directive('tick', vTick)
   .use(router)
   .use(i18n)
   .mount('#app')

@@ -61,6 +61,8 @@ export const useCamera = (initial: ViewName, ox: number, oy: number, scale = 1) 
   const make = (v: ViewName): Cam => ({ ...VIEWS[v], s: VIEWS[v].s * scale, ox, oy })
   const cam = shallowRef<Cam>(make(initial))
   const view = shallowRef<ViewName>(initial)
+  // bumps when a view change lands: pages flash a lock bracket on it
+  const settled = shallowRef(0)
   let raf = 0
   const go = (v: ViewName, ms = 650) => {
     if (v === view.value) return
@@ -81,11 +83,12 @@ export const useCamera = (initial: ViewName, ox: number, oy: number, scale = 1) 
         ox, oy,
       }
       if (k < 1) raf = window.requestAnimationFrame(step)
+      else settled.value++
     }
     raf = window.requestAnimationFrame(step)
   }
   const dispose = () => window.cancelAnimationFrame(raf)
-  return { cam, view, go, dispose }
+  return { cam, view, settled, go, dispose }
 }
 
 /* Named points that pages draw leader lines from. */

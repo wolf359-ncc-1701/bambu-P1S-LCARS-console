@@ -11,7 +11,7 @@
         v-for="(m, i) in MODES"
         :key="m.key"
         class="tab"
-        :style="{ left: `${TAB_X + i * TAB_W}px`, width: `${TAB_W - 3}px` }"
+        :style="{ left: `${TAB_X + i * tabW}px`, width: `${tabW - 3}px` }"
         :label="t(`x.m_${m.key}`)"
         :tone="m.tone"
         :shape="i === 0 ? 'pl' : ''"
@@ -20,7 +20,7 @@
       />
       <LBtn
         class="tab light"
-        :style="{ left: `${TAB_X + MODES.length * TAB_W}px` }"
+        :style="{ left: `${TAB_X + MODES.length * tabW}px` }"
         :label="t('x.m_light')"
         :tone="lightOn ? 'o3' : 'g1'"
         shape="pr"
@@ -40,6 +40,7 @@ import { LightType } from '@bambulab-p1screen/printer-api'
 import { client } from '../../printer'
 import { refreshPrinter } from '../../stores/printer'
 import { usePlant } from '../systems'
+import { stage } from '../stage'
 import { run } from '../ui'
 import LBtn from '../components/LBtn.vue'
 import ThermalPanel from './eng/ThermalPanel.vue'
@@ -59,7 +60,9 @@ const MODES: { key: Mode, tone: string }[] = [
   { key: 'align', tone: 'c2' },
 ]
 const TAB_X = 0
-const TAB_W = 86
+// tabs share the extra width of a wide screen
+const TAB_W_BASE = 86
+const tabW = computed(() => TAB_W_BASE + Math.floor(stage.wing / 6))
 
 const PANELS: Record<Mode, any> = {
   thermal: ThermalPanel,
@@ -86,10 +89,10 @@ const toggleLight = async () => {
 </script>
 
 <style scoped>
-.eng { position: relative; width: 532px; height: 268px; }
-.deck { position: absolute; left: 0; top: 0; width: 532px; height: 238px; }
-.tabs { position: absolute; left: 0; top: 242px; width: 532px; height: 26px; }
+.eng { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; }
+.deck { position: absolute; left: 0; top: 0; width: calc(532px + var(--xw, 0px)); height: 238px; }
+.tabs { position: absolute; left: 0; top: 242px; width: calc(532px + var(--xw, 0px)); height: 26px; }
 .tab { position: absolute; top: 0; height: 26px; font-size: 13px; padding-bottom: 2px; }
 .tab :deep(.lb-t) { bottom: 6px; }
-.light { width: 102px; }
+.light { width: calc(102px + var(--xw, 0px) / 6); }
 </style>

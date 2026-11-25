@@ -1,6 +1,7 @@
 /* Shell services shared by every module: the header notice line, the confirm panel,
    the numeric keypad and the alert acknowledgement. All rendered once by the shell. */
 import { reactive } from 'vue'
+import { play } from './sfx'
 
 type ConfirmState = {
   show: boolean
@@ -51,6 +52,7 @@ export const notice = (message: string, tone: 'c' | 'o' | 'r' = 'c') => {
 export const confirmPanel = (opts: { title: string, body: string, ok: string, cancel: string, tone?: 'o' | 'r' | 'c' }) =>
   new Promise<boolean>((resolve) => {
     ui.confirm.resolve?.(false)
+    play('confirm')
     Object.assign(ui.confirm, { show: true, tone: 'o', ...opts, resolve })
   })
 
@@ -90,9 +92,11 @@ export const run = async (label: string, fn: () => unknown, failText: (m: string
   try {
     await fn()
     notice(label)
+    play('ok')
     return true
   } catch (error: any) {
     notice(failText(error?.message ?? String(error)), 'r')
+    play('deny')
     return false
   }
 }

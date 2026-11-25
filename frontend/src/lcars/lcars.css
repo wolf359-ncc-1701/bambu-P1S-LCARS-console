@@ -34,7 +34,7 @@ html, body, #app {
   position: absolute;
   left: 0;
   top: 0;
-  width: 640px;
+  width: 640px; /* the stage fit sets the real width (640-780) */
   height: 360px;
   overflow: hidden;
   background: #000;
@@ -77,7 +77,7 @@ html, body, #app {
   white-space: nowrap;
   -webkit-appearance: none;
 }
-.lb:active { opacity: .72; }
+.lb:active:not([disabled]) { background: var(--o6) !important; color: #000 !important; }
 .lb[disabled] { opacity: .28; cursor: default; }
 .lb .lb-t { position: absolute; right: 7px; bottom: 4px; }
 .lb .lb-s { position: absolute; left: 7px; top: 4px; font-size: 10px; font-weight: 500; opacity: .75; }
@@ -134,23 +134,41 @@ html, body, #app {
 [data-sys=alert] { color: #FF4A2E; }
 
 /* ---------- one-shot flickers (acknowledgement) ---------- */
-.flk1 { animation: flk1 .4s steps(4) 1; }
-.flk2 { animation: flk2 .7s steps(7) 1; }
-@keyframes flk1 { 0% { opacity: 1 } 25% { opacity: .25 } 50% { opacity: .9 } 75% { opacity: .4 } 100% { opacity: 1 } }
-@keyframes flk2 { 0% { opacity: 1 } 14% { opacity: .1 } 28% { opacity: .8 } 42% { opacity: .2 } 57% { opacity: 1 } 71% { opacity: .3 } 100% { opacity: 1 } }
+@keyframes flk1 { 0% { opacity: .55 } 50% { opacity: .85 } 100% { opacity: 1 } }
+@keyframes flk2 { 0% { opacity: 0 } 50% { opacity: .5 } 100% { opacity: 1 } }
 
-/* staged reveal: frame first, then structure, content, micro detail. A CSS animation plays
-   whenever an element is inserted (including later v-if branches) and needs no JS timers.
-   The delays are deliberately uneven so the arrival reads engineered, not procedural. */
-.stg { animation: stgIn .42s ease backwards; }
-.stg.sx { animation-name: stgInX; }
+/* Staged reveal, LCARS style: nothing floats in. Elements stamp on in discrete steps
+   (a dim strike, a drop-out, then full), bars and leaders wipe out along their axis in
+   four steps. The order is frame → structure → content → controls → micro detail on an
+   uneven chain, so the arrival reads engineered, not procedural. Pure CSS: it plays on
+   insertion (including later v-if branches) and needs no JS timers. */
+.stg { animation: stgStamp .27s step-end backwards; }
+.stg.sx { animation-name: stgWipeX; transform-origin: 0 50%; }
+.stg.sy { animation-name: stgWipeY; transform-origin: 50% 0; }
 .stg[data-o="1"] { animation-delay: .06s; }
-.stg[data-o="2"] { animation-delay: .34s; }
-.stg[data-o="3"] { animation-delay: .62s; }
+.stg[data-o="2"] { animation-delay: .36s; }
+.stg[data-o="3"] { animation-delay: .66s; }
 .stg[data-o="4"] { animation-delay: .86s; }
-.stg[data-o="5"] { animation-delay: 1.2s; }
-@keyframes stgIn { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
-@keyframes stgInX { from { opacity: 0; transform: translate3d(-14px, 0, 0); } to { opacity: 1; transform: none; } }
+.stg[data-o="5"] { animation-delay: 1.16s; }
+.stg[data-o="6"] { animation-delay: 1.76s; }
+@keyframes stgStamp { 0% { opacity: 0 } 1% { opacity: .55 } 34% { opacity: .15 } 67% { opacity: 1 } 100% { opacity: 1 } }
+@keyframes stgWipeX { 0% { opacity: 1; transform: scaleX(0) } 1% { transform: scaleX(.3) } 25% { transform: scaleX(.6) } 50% { transform: scaleX(.85) } 75% { transform: none } 100% { transform: none } }
+@keyframes stgWipeY { 0% { opacity: 1; transform: scaleY(0) } 1% { transform: scaleY(.3) } 25% { transform: scaleY(.6) } 50% { transform: scaleY(.85) } 75% { transform: none } 100% { transform: none } }
+
+.flk1 { animation: flk1 .12s step-end 1; }
+.flk2 { animation: flk2 .18s step-end 1; }
+
+/* data-change tick: a value that changed flashes bright, drops, then settles (240 ms) */
+.vtk { animation: vtk .24s step-end 1; }
+@keyframes vtk { 0% { color: #fff } 34% { opacity: .45 } 67% { color: var(--c5); opacity: 1 } 100% { } }
+
+/* the nav tab being opened strobes until its page has arrived */
+.strobe { animation: strobe .28s step-end 4; }
+@keyframes strobe { 0% { opacity: .4 } 50% { opacity: 1 } }
+
+/* a state change sweeping across the frame (condition yellow / red entry) */
+.sweep { animation: sweep .42s step-end 1; }
+@keyframes sweep { 0% { opacity: .2 } 25% { opacity: 1 } 50% { opacity: .35 } 75% { opacity: 1 } }
 
 @media (prefers-reduced-motion: reduce) {
   .lcars *, .lcars *::after { animation: none !important; transition: none !important; }

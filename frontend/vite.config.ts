@@ -17,6 +17,9 @@ const getGitText = (command: string) => {
 }
 
 const tag = process.env.TAG_NAME?.trim() ?? 'dev'
+// LEGACY=0 drops the nomodule bundle for old WebViews (Chrome 57 on Android 7). A modern
+// phone (LG G7 on Android 13+) never loads it anyway; leaving it out only speeds up builds.
+const withLegacy = process.env.LEGACY !== '0'
 const commitHash = getGitText('git rev-parse --short=7 HEAD')
 
 export default defineConfig({
@@ -26,7 +29,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
-    legacy({
+    withLegacy && legacy({
       modernPolyfills: [
         'es.array.at',
         'es.typed-array.at',

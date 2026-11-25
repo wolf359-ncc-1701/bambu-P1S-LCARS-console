@@ -30,6 +30,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { play } from '../sfx'
 
 const props = withDefaults(defineProps<{
   value: number // live reading
@@ -102,7 +103,10 @@ const up = (e: PointerEvent) => {
   if (e.pointerId !== pid) return
   const v = preview.value
   detach()
-  if (v !== props.target) emit('commit', v)
+  if (v !== props.target) {
+    play('commit')
+    emit('commit', v)
+  }
 }
 const cancel = (e?: PointerEvent) => {
   if (e && e.pointerId !== pid) return

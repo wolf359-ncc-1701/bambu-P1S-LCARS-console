@@ -30,6 +30,11 @@ const tick = () => {
     if (!e.el.isConnected) {
       // removed without an unmount hook (e.g. a v-for shrank): drop it
       entries.splice(k--, 1)
+      if (!entries.length) {
+        window.clearInterval(timer)
+        timer = 0
+        return
+      }
       continue
     }
     if (now < e.next) continue
@@ -91,9 +96,46 @@ export const flick = (el: Element | null | undefined, kind: 1 | 2 = 1) => {
   // restart the animation; getBoundingClientRect also works on SVG elements
   void el.getBoundingClientRect()
   el.classList.add(cls)
-  flickTimers.set(el, window.setTimeout(() => el.classList.remove(cls), kind === 1 ? 420 : 720))
+  flickTimers.set(el, window.setTimeout(() => el.classList.remove(cls), kind === 1 ? 140 : 200))
 }
 
 /* Staged intro is pure CSS now (.stg + data-o in lcars.css). Kept as a no-op so views can
    still mark where their intro starts. */
 export const releaseChain = (_root: Element | null, _beats?: number[]) => () => {}
+
+/* v-tick="value": the element flashes once (240 ms, stepped) whenever its value changes.
+   Bind it to discrete values (layers, targets, percentages), never to live temperatures. */
+/* One-shot class pulses (tick, sweep, heartbeat) with their own timers. Restarts are
+   batched into one animation frame, so several readouts changing in one telemetry push
+   cost no forced reflows. */
+const pulseTimers = new WeakMap<Element, Map<string, number>>()
+const queued = new Map<Element, [string, number]>()
+let pulseRaf = 0
+export const pulse = (el: Element | null | undefined, cls: string, ms: number) => {
+  if (!el || REDUCED) return
+  el.classList.remove(cls)
+  queued.set(el, [cls, ms])
+  if (pulseRaf) return
+  pulseRaf = window.requestAnimationFrame(() => {
+    pulseRaf = 0
+    queued.forEach(([c, d], node) => {
+      node.classList.add(c)
+      let timers = pulseTimers.get(node)
+      if (!timers) pulseTimers.set(node, timers = new Map())
+      window.clearTimeout(timers.get(c))
+      timers.set(c, window.setTimeout(() => node.classList.remove(c), d))
+    })
+    queued.clear()
+  })
+}
+
+export const vTick: Directive<HTMLElement | SVGElement, unknown> = {
+  updated(el, binding) {
+    if (binding.value === binding.oldValue) return
+    pulse(el, 'vtk', 260)
+  },
+  beforeUnmount(el) {
+    queued.delete(el)
+    pulseTimers.get(el)?.forEach(id => window.clearTimeout(id))
+  },
+}

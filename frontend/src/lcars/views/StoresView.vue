@@ -20,10 +20,37 @@
       <div v-else class="lbl">{{ t('x.silos') }} <span class="c-g5">• {{ unit ? `${amsModelName(unit)}-${amsPrefix(unit.id)}` : t('x.no_ams') }}</span></div>
     </div>
 
-    <!-- silos and feed manifold -->
-    <svg class="bank stg" data-o="2" width="316" height="200" viewBox="0 0 316 200">
+    <!-- the AMS as a hologram, with one slot card per spool under it (the tap targets) -->
+    <template v-if="holo && unit">
+      <LHoloAms class="bank3 stg" data-o="2" :w="bankW" :h="130" :slots="holoSlots" :drying="drying" @fallback="holo = false" />
+      <div class="cards" :style="{ width: `${bankW}px` }">
+        <div
+          v-for="(s, i) in silos"
+          :key="s.key"
+          class="card stg sx"
+          :class="{ sel: s.key === selKey }"
+          :style="{ animationDelay: `${.5 + i * .07}s` }"
+          role="button"
+          tabindex="0"
+          :aria-label="`${s.slot} ${s.material}`"
+          @click="select(s.key)"
+          @keydown.enter="select(s.key)"
+        >
+          <span class="cd-sw" :style="{ background: s.color, opacity: s.loaded ? (s.known ? 1 : .6) : .12 }" />
+          <span class="cd-slot">{{ s.slot }}</span>
+          <span class="cd-mat">{{ s.material }}</span>
+          <span v-if="s.loaded" class="cd-rem num">{{ s.known ? `${s.remain}%` : '?' }}</span>
+          <span v-if="s.loaded && s.known" class="cd-bar"><span :style="{ width: `${Math.max(2, s.remain)}%`, background: s.color }" /></span>
+          <span v-if="s.rfid" class="cd-rf" />
+          <!-- the slot feeding the injector right now: a red frame, blinking -->
+          <span v-if="s.flow || s.pending" class="cd-feed feeding" :class="{ pend: s.pending }" />
+        </div>
+      </div>
+    </template>
+    <!-- silos and feed manifold (without WebGL) -->
+    <svg v-else class="bank stg" data-o="2" width="316" height="200" viewBox="0 0 316 200">
       <g v-for="(s, i) in silos" :key="s.key" :transform="`translate(${i * 62} 0)`"
-         class="silo" :class="{ sel: s.key === selKey }"
+         class="silo stg" :class="{ sel: s.key === selKey }" :style="{ animationDelay: `${.36 + i * .07}s` }"
          role="button" tabindex="0" :aria-label="`${s.slot} ${s.material}`"
          @click="select(s.key)" @keydown.enter="select(s.key)">
         <rect x="2" y="26" width="50" height="118" rx="25" fill="#000" :stroke="s.key === selKey ? 'var(--ft)' : 'var(--g3)'" :stroke-width="s.key === selKey ? 3 : 1.5" />
@@ -168,6 +195,9 @@ import { usePlant } from '../systems'
 import { confirmPanel, run } from '../ui'
 import LBtn from '../components/LBtn.vue'
 import LSeg from '../components/LSeg.vue'
+import LHoloAms from '../components/LHoloAms.vue'
+import { holoSupported } from '../holo/gl'
+import { stage } from '../stage'
 import LToggle from '../components/LToggle.vue'
 
 const { t } = useI18n()
@@ -218,6 +248,17 @@ const silos = computed(() => {
   })
 })
 const anyFlow = computed(() => trayNow.value !== 255)
+
+/* hologram: the bank takes all of a wide screen's extra width */
+const holo = ref(holoSupported())
+const bankW = computed(() => 250 + stage.wing)
+const holoSlots = computed(() => silos.value.map(s => ({
+  color: s.color.startsWith('#') ? s.color : '#5a6470',
+  loaded: s.loaded,
+  remain: s.known ? s.remain / 100 : -1,
+  active: s.flow,
+  pending: s.pending,
+})))
 
 const conduit = (i: number) => {
   const x = i * 62 + 27
@@ -369,7 +410,22 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.st { position: relative; width: 532px; height: 268px; }
+.st { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; }
+/* everything right of the bank moves over by the extra width */
+.aux, .env, .act, .dry-b, .cfg-b { margin-left: var(--xw, 0px); }
+.bank3 { left: 0; top: 22px; }
+.cards { position: absolute; left: 0; top: 154px; height: 108px; display: flex; gap: 4px; }
+.card { position: relative; flex: 1; height: 108px; background: var(--g1); border-radius: 0 0 0 14px; cursor: pointer; outline: none; }
+.card:active { opacity: .75; }
+.card.sel { background: #000; box-shadow: inset 0 0 0 2px var(--ft); }
+.cd-sw { position: absolute; left: 0; top: 0; right: 0; height: 8px; }
+.cd-slot { position: absolute; left: 6px; top: 12px; font-size: 15px; font-weight: 600; color: var(--g6); }
+.cd-mat { position: absolute; left: 6px; right: 4px; top: 32px; font-size: 16px; color: var(--c4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cd-rem { position: absolute; left: 6px; top: 54px; font-size: 22px; line-height: 24px; color: var(--o5); }
+.cd-bar { position: absolute; left: 6px; right: 6px; top: 84px; height: 4px; background: var(--g2); }
+.cd-bar span { display: block; height: 4px; }
+.cd-rf { position: absolute; right: 6px; top: 14px; width: 14px; height: 6px; border-radius: 3px; background: var(--c4); }
+.cd-feed { position: absolute; left: -3px; top: -3px; right: -3px; bottom: -3px; border: 3px solid #FF3B24; border-radius: 0 0 0 16px; pointer-events: none; }
 .lbl { font-size: 15px; line-height: 17px; font-weight: 600; color: var(--ft); letter-spacing: .03em; }
 .lbl.sm { font-size: 13px; }
 .units { position: absolute; left: 0; top: 0; width: 320px; height: 22px; display: flex; }
@@ -390,7 +446,7 @@ onBeforeUnmount(() => {
 .aux { position: absolute; left: 254px; top: 48px; width: 60px; height: 96px; background: var(--g1); cursor: pointer; border-radius: 0 0 0 16px; outline: none; }
 .aux.sel { background: #000; border: 2px solid var(--ft); }
 .aux-sw { position: absolute; left: 8px; top: 8px; width: 44px; height: 30px; border-radius: 15px; }
-.aux-l { position: absolute; left: 6px; right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; top: 44px; font-size: 13px; font-weight: 600; color: var(--g6); }
+.aux-l { position: absolute; left: 4px; right: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; top: 44px; font-size: 12px; font-weight: 600; color: var(--g6); }
 .aux-z { position: absolute; left: 6px; top: 58px; font-size: 8px; color: var(--g5); }
 .aux-m { position: absolute; left: 6px; right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; top: 66px; font-size: 15px; color: var(--c4); }
 

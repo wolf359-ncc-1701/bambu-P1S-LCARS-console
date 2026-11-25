@@ -8,8 +8,8 @@
       <div class="cf-title">{{ c.title }}</div>
       <div class="cf-body">{{ c.body }}</div>
       <LLights class="cf-lights" :n="6" :seed="5" :period="[0.8, 2]" />
-      <LBtn class="cf-no" :label="c.cancel" tone="g2" shape="pl" @press="closeConfirm(false)" />
-      <LBtn class="cf-yes" :label="c.ok" :tone="c.tone === 'r' ? 'r' : c.tone === 'c' ? 'c3' : 'o3'" shape="pr" @press="closeConfirm(true)" />
+      <LBtn class="cf-no" sound="cancel" :label="c.cancel" tone="g2" shape="pl" @press="closeConfirm(false)" />
+      <LBtn class="cf-yes" sound="set" :label="c.ok" :tone="c.tone === 'r' ? 'r' : c.tone === 'c' ? 'c3' : 'o3'" shape="pr" @press="closeConfirm(true)" />
     </div>
   </div>
 </template>
@@ -33,7 +33,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <style scoped>
-.ovl { position: absolute; left: 0; top: 0; z-index: 11; width: 640px; height: 360px; background: rgba(0, 0, 0, .8); }
+.ovl { position: absolute; left: 0; top: 0; z-index: 11; width: 100%; height: 360px; background: rgba(0, 0, 0, .8); }
 .cf { position: absolute; left: 190px; top: 120px; width: 360px; height: 150px; background: #000; }
 .cf-frame { position: absolute; left: 0; top: 0; }
 .cfa { fill: var(--o4); }

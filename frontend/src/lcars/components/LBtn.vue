@@ -11,7 +11,7 @@
   >
     <span v-if="dot" class="lb-dot"></span>
     <span v-if="code" class="lb-s">{{ code }}</span>
-    <span class="lb-t">
+    <span ref="txt" class="lb-t">
       {{ label }}
       <span v-if="sub" class="lb-sub">{{ sub }}</span>
     </span>
@@ -23,6 +23,7 @@
    smaller line in the same language. */
 import { ref } from 'vue'
 import { flick } from '../ambient'
+import { play, type CueName } from '../sfx'
 
 const props = withDefaults(defineProps<{
   label: string
@@ -34,6 +35,7 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   dot?: boolean
   aria?: string
+  sound?: CueName | ''
 }>(), {
   sub: '',
   code: '',
@@ -43,14 +45,18 @@ const props = withDefaults(defineProps<{
   disabled: false,
   dot: false,
   aria: '',
+  sound: 'press',
 })
 
 const emit = defineEmits<{ (e: 'press'): void }>()
 const el = ref<HTMLElement | null>(null)
+// the flicker runs on the label, so it never replaces an entrance animation on the button
+const txt = ref<HTMLElement | null>(null)
 
 const onClick = () => {
   if (props.disabled) return
-  flick(el.value, 1)
+  flick(txt.value, 1)
+  if (props.sound) play(props.sound)
   emit('press')
 }
 </script>

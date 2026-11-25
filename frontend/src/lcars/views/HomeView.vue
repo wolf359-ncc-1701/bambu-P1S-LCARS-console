@@ -1,7 +1,32 @@
 <template>
-  <div class="home" :class="{ idle: !printing }">
+  <div class="home" :class="{ idle: !printing }" :style="{ '--xa': `${xa}px` }">
     <!-- ===== the MSD: a cutaway of the printer, every region a system ===== -->
-    <svg class="msd stg" data-o="1" width="212" height="268" viewBox="0 0 212 268" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true">
+    <LHoloPrinter
+      v-if="holo"
+      class="msd stg"
+      data-o="1"
+      :w="212 + xa"
+      :h="268"
+      :cam="homeCam"
+      :tool="holoTool"
+      :bed-z="holoBedZ"
+      :states="holoStates"
+      :show="holoShow"
+      :model="holoModel"
+      :progress="formed"
+      :model-color="holoModelColor"
+      :spools="holoSpools"
+      :turntable="64"
+      :scan-every="12000"
+      :cards="holoCards"
+      @fallback="holo = false"
+    />
+    <!-- the thumbnail itself, small: the hologram's print is a lathe of this silhouette -->
+    <div v-if="holo && printing && cut && !zoomMounted" class="spec stg" data-o="5">
+      <img :src="cut.url" alt="" />
+      <span>{{ t('x.silhouette') }}</span>
+    </div>
+    <svg v-if="!holo" class="msd stg" data-o="1" width="212" height="268" viewBox="0 0 212 268" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true">
       <defs>
         <clipPath id="homeFormed"><rect x="20" :y="formedTop" width="170" :height="Math.max(0, BED_Y - formedTop)" /></clipPath>
       </defs>
@@ -83,7 +108,8 @@
         <path d="M0 14 V0 H14 M182 0 H196 V14 M196 200 V214 H182 M14 214 H0 V200" fill="none" stroke="var(--c3)" stroke-width="2" />
       </svg>
       <div class="zoom-t">{{ t('x.zoom_title') }}</div>
-      <LFdm class="zoom-fdm" :running="zoomOn" :w="184" :h="176" :color="modelColor" :layer-label="layerLabel" :caption="`${t('x.zoom_now')} ${device?.layer_num ?? 0}`" />
+      <LHoloFdm v-if="holo" class="zoom-fdm" :running="zoomOn" :w="184" :h="176" :color="holoModelColor" :layer-label="layerLabel" :caption="`${t('x.zoom_now')} ${device?.layer_num ?? 0}`" @fallback="holo = false" />
+      <LFdm v-else class="zoom-fdm" :running="zoomOn" :w="184" :h="176" :color="modelColor" :layer-label="layerLabel" :caption="`${t('x.zoom_now')} ${device?.layer_num ?? 0}`" />
     </div>
 
     <!-- ===== mission readouts ===== -->
@@ -93,14 +119,14 @@
         <div class="task-state"><span class="c-c4">{{ stageCode }}</span> {{ printStateLabel }}</div>
       </div>
       <div class="pct stg" data-o="3">
-        <span class="num pct-n">{{ printPercent }}</span><span class="pct-u">%</span>
+        <span v-tick="printPercent" class="num pct-n">{{ printPercent }}</span><span class="pct-u">%</span>
       </div>
       <div class="facts stg" data-o="3">
-        <div class="fact"><span class="cap">{{ t('x.layer') }}</span><span class="num fv c-o5">{{ device?.layer_num ?? 0 }}<span class="fd">/{{ device?.total_layer_num ?? 0 }}</span></span></div>
+        <div class="fact"><span class="cap">{{ t('x.layer') }}</span><span v-tick="device?.layer_num" class="num fv c-o5">{{ device?.layer_num ?? 0 }}<span class="fd">/{{ device?.total_layer_num ?? 0 }}</span></span></div>
         <div class="fact"><span class="cap">{{ t('x.t_minus') }}</span><span class="num fv c-c5">{{ remaining }}</span></div>
         <div class="fact"><span class="cap">{{ t('x.eta') }}</span><span class="num fv c-c5">{{ eta }}</span></div>
       </div>
-      <LSeg class="track stg" data-o="3" :value="printPercent" :max="100" :n="40" :w="316" :h="8" color="var(--c3)" />
+      <LSeg class="track stg sx" data-o="3" pulse :value="printPercent" :max="100" :n="40 + Math.floor(xa / 8)" :w="316 + xa" :h="8" color="var(--c3)" />
 
       <LBtn v-if="!isPaused" class="ctl c1 stg" data-o="4" :label="t('x.suspend')" tone="y" shape="pr" dot :disabled="!showPrintActions" @press="client.setPause()" />
       <LBtn v-else class="ctl c1 stg" data-o="4" :label="t('x.resume')" tone="c3" shape="pr" dot :disabled="!showPrintActions" @press="client.setResume()" />
@@ -114,7 +140,9 @@
         <div class="task-state c-g5">{{ connected ? hint : t('x.no_link') }}</div>
       </div>
       <LLights class="idle-lights stg" data-o="4" :n="9" :seed="11" :period="[2, 6]" />
-      <div class="idle-codes stg cap" data-o="4">
+      <!-- readiness loop: real states, one line at a time, stamped in every 11 s -->
+      <div :key="readyIdx" class="ready stg" data-o="1">{{ readyLines[readyIdx % readyLines.length] }}</div>
+      <div class="idle-codes stg cap" data-o="5">
         <div v-for="c in codes" :key="c">{{ c }}</div>
       </div>
       <template v-if="connected">
@@ -127,11 +155,11 @@
 
     <!-- system blocks: share state with their MSD regions -->
     <div class="blocks">
-      <div v-for="(b, i) in blocks" :key="b.id" class="blk stg sx" data-o="3" :style="{ top: `${136 + i * 26}px` }" :data-sys="b.state">
+      <div v-for="(b, i) in blocks" :key="b.id" class="blk stg sx" :style="{ top: `${136 + i * 26}px`, animationDelay: `${.66 + i * .06}s` }" :data-sys="b.state">
         <span class="blk-sl"></span>
         <span class="blk-n" :class="{ solo: same(b.fn, b.name) }">{{ b.name }}</span>
         <span v-if="!same(b.fn, b.name)" class="blk-f">{{ b.fn }}</span>
-        <span class="blk-v num">{{ b.value }}</span>
+        <span v-tick="b.tick" class="blk-v num">{{ b.value }}</span>
       </div>
     </div>
 
@@ -147,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { FanType, GcodeState } from '@bambulab-p1screen/printer-api'
@@ -166,6 +194,12 @@ import LBtn from '../components/LBtn.vue'
 import LSeg from '../components/LSeg.vue'
 import LLights from '../components/LLights.vue'
 import LFdm from '../components/LFdm.vue'
+import LHoloPrinter from '../components/LHoloPrinter.vue'
+import LHoloFdm from '../components/LHoloFdm.vue'
+import { holoSupported } from '../holo/gl'
+import { REF, modelDims } from '../holo/printer'
+import { BED0, BUILD, TIP_Z, project, type Cam } from '../plant3d'
+import { stage } from '../stage'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -252,6 +286,48 @@ const pods = computed(() => {
   })
 })
 
+/* ---- the hologram (WebGL); the SVG cutaway above stays as the fallback ---- */
+const holo = ref(holoSupported())
+const D2R = Math.PI / 180
+// a wide screen gives half its extra width to the hologram, half to the readouts
+const xa = computed(() => Math.floor(stage.wing / 2))
+const homeCam = computed<Cam>(() => ({ yaw: -34 * D2R, pitch: 22 * D2R, s: .27 + xa.value / 1400, ox: 106 + xa.value / 2, oy: 140 }))
+const holoShape = computed(() => ({ rows: rows.value, aspect: (cut.value?.w || 76) / (cut.value?.h || 86) }))
+const holoModel = computed(() => (printing.value ? holoShape.value : null))
+const holoBedZ = computed(() => (printing.value ? formed.value * modelDims(holoShape.value).hm : 20))
+// mutated by the trace loop; the page itself never re-renders for it
+const holoTool = reactive({ x: BUILD / 2, y: BUILD / 2 })
+const holoTrace = (now: number) => {
+  const list = rows.value
+  if (!list.length) return
+  const idx = Math.max(0, Math.min(list.length - 1, Math.floor((1 - formed.value) * list.length)))
+  const [l, r] = list[idx]
+  const { wm } = modelDims(holoShape.value)
+  const k = .5 - .5 * Math.cos(now / 900 * Math.PI)
+  const xw = REF + ((l + (r - l) * k) - .5) * wm
+  holoTool.x = xw - BED0
+  holoTool.y = BUILD / 2 + Math.sin(now / 1300) * Math.min(30, (r - l) * wm * .3)
+  const [px, py] = project(homeCam.value, [xw, BED0 + holoTool.y, TIP_Z])
+  headX = px
+  headY = py
+}
+const holoStates = computed(() => ({ core: sys.value.core, pad: sys.value.pad, stores: sys.value.stores, chamber: sys.value.chamber, heater: heaterSys.value }))
+const holoShow = computed(() => ({ ams: !!device.value?.ams?.ams?.length, heater: heaterLinked.value, rings: true }))
+const holoModelColor = computed(() => (modelColor.value.startsWith('#') ? modelColor.value : ''))
+const holoSpools = computed(() => pods.value.map(p => ({ color: p.color.startsWith('#') ? p.color : '#67CAF0', loaded: p.loaded, active: p.active })))
+const tone = (s: string) => (s === 'caution' ? 'y' : s === 'alert' ? 'o' : s === 'nominal' ? 'c' : 'g') as 'c' | 'o' | 'y' | 'g'
+const holoCards = computed(() => {
+  const p = device.value
+  return [
+    { label: t('x.hc_core'), value: `${t0(p?.nozzle_temper)}°`, tone: tone(sys.value.core) },
+    { label: t('x.hc_pad'), value: `${t0(p?.bed_temper)}°`, tone: tone(sys.value.pad) },
+    { label: t('x.hc_bay'), value: chamberValue.value, tone: tone(heaterSys.value) },
+    printing.value
+      ? { label: t('x.hc_layer'), value: `${p?.layer_num ?? 0}/${p?.total_layer_num ?? 0}`, tone: 'o' as const }
+      : { label: t('x.hc_layer'), value: '—', tone: 'g' as const },
+  ]
+})
+
 /* ---- readouts ---- */
 const taskName = computed(() => device.value?.subtask_name || t('x.unnamed'))
 const stageCode = computed(() => (locale.value.startsWith('zh') ? '' : `STG ${String(device.value?.stg_cur ?? 255).padStart(3, '0')}`))
@@ -301,11 +377,11 @@ const blocks = computed(() => {
   const p = device.value
   const s = sys.value
   return [
-    { id: 'core', name: t('x.core'), fn: t('x.core_fn'), state: s.core, value: `${t0(p?.nozzle_temper)}/${t0(p?.nozzle_target_temper)}°` },
-    { id: 'feed', name: t('x.feed'), fn: t('x.feed_fn'), state: s.feed, value: feedLabel.value },
-    { id: 'pad', name: t('x.pad'), fn: t('x.pad_fn'), state: s.pad, value: `${t0(p?.bed_temper)}/${t0(p?.bed_target_temper)}°` },
-    { id: 'coolant', name: t('x.coolant'), fn: t('x.coolant_fn'), state: s.coolant, value: `${fanCount.value}/3` },
-    { id: 'chamber', name: t('x.chamber'), fn: t('x.chamber_fn'), state: heaterSys.value, value: chamberValue.value },
+    { id: 'core', tick: p?.nozzle_target_temper, name: t('x.core'), fn: t('x.core_fn'), state: s.core, value: `${t0(p?.nozzle_temper)}/${t0(p?.nozzle_target_temper)}°` },
+    { id: 'feed', tick: feedLabel.value, name: t('x.feed'), fn: t('x.feed_fn'), state: s.feed, value: feedLabel.value },
+    { id: 'pad', tick: p?.bed_target_temper, name: t('x.pad'), fn: t('x.pad_fn'), state: s.pad, value: `${t0(p?.bed_temper)}/${t0(p?.bed_target_temper)}°` },
+    { id: 'coolant', tick: fanCount.value, name: t('x.coolant'), fn: t('x.coolant_fn'), state: s.coolant, value: `${fanCount.value}/3` },
+    { id: 'chamber', tick: heaterSys.value, name: t('x.chamber'), fn: t('x.chamber_fn'), state: heaterSys.value, value: chamberValue.value },
   ]
 })
 
@@ -314,6 +390,22 @@ const hint = computed(() => {
   return list[Math.floor(Date.now() / 600000) % list.length]
 })
 const codes = Array.from({ length: 4 }, () => `${filler()}  ${filler()}`)
+
+/* readiness loop while idle: each line is a real reading, never filler */
+const readyIdx = ref(0)
+const readyLines = computed(() => {
+  const p = device.value
+  const units = p?.ams?.ams ?? []
+  const loaded = units.reduce((n, u) => n + u.tray.filter(tr => !!tr.tray_type).length, 0)
+  const hum = units.length ? Math.max(...units.map(u => Number(u.humidity) || 0)) : 0
+  const lines = [
+    t('x.ready_thermal', { n: t0(p?.nozzle_temper), b: t0(p?.bed_temper) }),
+    units.length ? t('x.ready_ams', { n: loaded, h: hum }) : t('x.no_ams'),
+    t('x.ready_link', { s: client.getWifiSignalPercentage() }),
+  ]
+  if (chamber.config.mac && heaterLive.value) lines.push(t('x.ready_chamber', { c: chamber.temp.toFixed(1) }))
+  return lines
+})
 
 const abort = async () => {
   const ok = await confirmPanel({ title: t('x.abort_title'), body: t('x.abort_body'), ok: t('x.abort'), cancel: t('x.cancel'), tone: 'r' })
@@ -330,6 +422,10 @@ const loop = (now: number) => {
   raf = window.requestAnimationFrame(loop)
   if (now - lastFrame < 33) return
   lastFrame = now
+  if (holo.value) {
+    holoTrace(now)
+    return
+  }
   const list = rows.value
   const idx = Math.max(0, Math.min(list.length - 1, Math.floor((1 - formed.value) * list.length)))
   const [l, r] = list[idx]
@@ -350,6 +446,11 @@ const loop = (now: number) => {
 }
 // park the head over the formed part when the loop is not driving it
 const park = () => {
+  if (holo.value) {
+    holoTool.x = BUILD / 2
+    holoTool.y = BUILD / 2
+    return
+  }
   const dy = printing.value ? Math.max(0, formedTop.value - TIP) : 0
   head.value?.setAttribute('transform', `translate(0 ${dy.toFixed(1)})`)
   gantry.value?.setAttribute('y', (74 + dy).toFixed(1))
@@ -390,7 +491,7 @@ const scheduleZoom = (delay: number) => {
     zoomTimers.push(window.setTimeout(() => { zoomOn.value = false }, 7600))
     zoomTimers.push(window.setTimeout(() => {
       zoomMounted.value = false
-      scheduleZoom(14000)
+      scheduleZoom(26000)
     }, 8300))
   }, delay))
 }
@@ -434,11 +535,14 @@ watch(() => ui.autoActive, (on) => {
 })
 
 let tickTimer = 0
+let readyTimer = 0
 onMounted(() => {
   tickTimer = window.setInterval(() => { if (!document.hidden) tick.value = Date.now() }, 15000)
+  readyTimer = window.setInterval(() => { if (!document.hidden && !printing.value) readyIdx.value++ }, 11000)
   if (scan.value) {
-    const ys = Array.from({ length: 24 }, (_, i) => `translate(0 ${i * 8.5})`)
-    ambientAdd(scan.value, ys, ys.map(() => 520), 'transform')
+    // an optical scan: twelve stepped rows down the hull, then a pause off-screen
+    const ys = [...Array.from({ length: 12 }, (_, i) => `translate(0 ${i * 17})`), 'translate(0 -400)']
+    ambientAdd(scan.value, ys, ys.map((_, i) => (i < 12 ? 200 : 5200)), 'transform')
   }
   scheduleDiag()
 })
@@ -446,6 +550,7 @@ onBeforeUnmount(() => {
   if (scan.value) ambientRemove(scan.value)
   window.cancelAnimationFrame(raf)
   window.clearInterval(tickTimer)
+  window.clearInterval(readyTimer)
   clearZoom()
   window.clearTimeout(diagTimer)
   clearDiagSteps()
@@ -453,9 +558,16 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.home { position: relative; width: 532px; height: 268px; }
+.home { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; --xa: 0px; }
+/* readouts move right by the hologram's share of a wide screen and take the rest as width */
+.task, .pct, .facts, .track, .blocks, .ready, .idle-lights, .idle-codes, .diag { margin-left: var(--xa); }
+.ctl { margin-left: calc(var(--xa) * 1.5); width: calc(152px + var(--xa) / 2) !important; }
+.blk { width: calc(158px + var(--xa) / 2) !important; }
 .msd { position: absolute; left: 0; top: 0; }
 .idle .msd { opacity: .6; }
+.spec { position: absolute; left: 2px; top: 2px; width: 54px; }
+.spec img { display: block; width: 46px; height: 46px; object-fit: contain; border-left: 3px solid var(--c3); padding-left: 3px; background: rgba(0, 0, 0, .6); }
+.spec span { display: block; margin-top: 1px; font-size: 8px; line-height: 9px; color: var(--g5); letter-spacing: .04em; }
 
 .zoom {
   position: absolute;
@@ -466,14 +578,14 @@ onBeforeUnmount(() => {
   background: #000;
   opacity: 0;
   transform: scale(.06);
-  transition: transform .5s cubic-bezier(.3, .7, .2, 1), opacity .25s;
+  transition: transform .3s steps(3, end), opacity .1s step-end;
 }
 .zoom.on { opacity: 1; transform: none; }
 .zoom-frame { position: absolute; left: 0; top: 0; }
 .zoom-t { position: absolute; left: 8px; top: 6px; font-size: 13px; line-height: 16px; color: var(--c4); }
 .zoom-fdm { position: absolute; left: 6px; top: 28px; }
 
-.task { position: absolute; left: 216px; top: 0; width: 316px; }
+.task { position: absolute; left: 216px; top: 0; width: calc(316px + var(--xa)); }
 .task-name { font-size: 20px; line-height: 23px; font-weight: 300; color: var(--o5); text-transform: none; }
 .idle .task-name { text-transform: uppercase; font-size: 28px; line-height: 32px; color: var(--ft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .idle .task-state { max-height: 32px; white-space: normal; }
@@ -483,7 +595,7 @@ onBeforeUnmount(() => {
 .pct-n { font-size: 78px; line-height: 80px; color: var(--o4); letter-spacing: -.02em; }
 .pct-u { font-size: 24px; color: var(--g5); margin-left: 2px; }
 
-.facts { position: absolute; left: 364px; top: 42px; width: 168px; }
+.facts { position: absolute; left: 364px; top: 42px; width: calc(168px + var(--xa)); }
 .fact { display: flex; justify-content: space-between; align-items: baseline; height: 26px; border-bottom: 1px solid var(--g1); }
 .fact .cap { font-size: 12px; }
 .fv { font-size: 22px; line-height: 24px; }
@@ -506,10 +618,11 @@ onBeforeUnmount(() => {
 .ctl.c3 { top: 228px; height: 34px; }
 
 .idle-lights { position: absolute; left: 216px; top: 76px; }
-.idle-codes { position: absolute; left: 216px; top: 88px; line-height: 13px; color: var(--g3); }
-.idle-codes div:nth-child(n+4) { display: none; }
+.ready { position: absolute; left: 216px; top: 90px; width: calc(316px + var(--xa)); font-size: 14px; line-height: 18px; color: var(--c4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none; }
+.idle-codes { position: absolute; left: 216px; top: 112px; line-height: 12px; color: var(--g3); opacity: .5; }
+.idle-codes div:nth-child(n+2) { display: none; }
 
-.diag { position: absolute; left: 216px; top: 0; width: 316px; height: 136px; overflow: hidden; background: #000; border-left: 6px solid var(--c3); padding: 3px 8px; }
+.diag { position: absolute; left: 216px; top: 0; width: calc(316px + var(--xa)); height: 136px; overflow: hidden; background: #000; border-left: 6px solid var(--c3); padding: 3px 8px; }
 .diag-t { font-size: 14px; color: var(--c4); margin-bottom: 3px; }
 .diag-r { display: flex; justify-content: space-between; font-size: 12px; line-height: 13.5px; color: var(--g5); }
 .diag-f { margin-top: 2px; color: var(--c4); }

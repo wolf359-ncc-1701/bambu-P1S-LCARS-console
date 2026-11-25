@@ -2,9 +2,23 @@
   <!-- Bay atmosphere: the chamber heater (a Sinilink thermostat) on the inner right bulkhead,
        led out to its panel: reading, mode, set points, a timer and a temperature schedule. -->
   <div class="ch">
+    <LHoloPrinter
+      v-if="holo"
+      class="view stg"
+      data-o="1"
+      :w="532"
+      :h="238"
+      :cam="cam"
+      :bed-z="40"
+      :states="{ core: systems.core, pad: systems.pad, heater: heaterSys }"
+      :show="{ heater: true }"
+      :focus="['heater', 'frame', 'glass']"
+      :scan-every="9000"
+      @fallback="holo = false"
+    />
     <svg class="view stg" data-o="1" width="532" height="238" viewBox="0 0 532 238" aria-hidden="true">
-      <LPrinter3D :cam="cam" :heater="heaterSys" :core="systems.core" :pad="systems.pad" :show="SHOW" :bed-z="40" />
-      <path :d="`M${a.heater[0].toFixed(1)} ${a.heater[1].toFixed(1)} H216 V28 H226`" fill="none" stroke-width="1.4" :data-sys="heaterSys" class="ld" />
+      <LPrinter3D v-if="!holo" :cam="cam" :heater="heaterSys" :core="systems.core" :pad="systems.pad" :show="SHOW" :bed-z="40" />
+      <path :d="`M${a.heater[0].toFixed(1)} ${a.heater[1].toFixed(1)} H${216 + stage.wing / 2} V28 H${226 + stage.wing / 2}`" fill="none" stroke-width="1.4" :data-sys="heaterSys" class="ld" />
       <circle :cx="a.heater[0]" :cy="a.heater[1]" r="3.5" :data-sys="heaterSys" fill="currentColor" />
       <text x="6" y="232" class="lab">{{ t('x.ch_heater') }}</text>
     </svg>
@@ -94,15 +108,19 @@ import {
   setChamberStart, setChamberStop, setChamberTimer, setChamberWork,
 } from '../../chamber'
 import { anchors, useCamera } from '../../plant3d'
+import { stage } from '../../stage'
 import { pad2, usePlant } from '../../systems'
 import { confirmPanel, keypad, notice, run } from '../../ui'
 import LBtn from '../../components/LBtn.vue'
 import LPrinter3D from '../../components/LPrinter3D.vue'
+import LHoloPrinter from '../../components/LHoloPrinter.vue'
+import { holoSupported } from '../../holo/gl'
 import LSlider from '../../components/LSlider.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const { systems } = usePlant()
+const holo = ref(holoSupported())
 const { cam, dispose } = useCamera('iso', 108, 118, 1)
 const now = ref(Date.now())
 const a = computed(() => anchors(cam.value, { x: 128, y: 128 }, 40))
@@ -200,7 +218,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.ch { position: relative; width: 532px; height: 238px; }
+.ch { position: relative; width: calc(532px + var(--xw, 0px)); height: 238px; }
+.view { margin-left: calc(var(--xw, 0px) / 2); }
+.unset, .stat, .modes, .subs, .body { margin-left: var(--xw, 0px); }
 .view { position: absolute; left: 0; top: 0; }
 .ld, circle[data-sys] { stroke: currentColor; opacity: 1; }
 .lab { font: 600 12px var(--lfont); fill: var(--g5); }

@@ -1,6 +1,10 @@
 package com.bambulab.p1screen;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
+import android.webkit.RenderProcessGoneDetail;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -129,6 +133,29 @@ public final class MainActivity extends Activity {
       public void onPageFinished(WebView view, String url) {
         view.postDelayed(() -> view.setVisibility(View.VISIBLE), 800);
       }
+
+      /* A console that runs for weeks will eventually lose its renderer (OOM kill, GPU
+         driver reset). Without this the activity would crash or show a dead page; instead
+         rebuild the activity, which reloads the console. */
+      @TargetApi(26)
+      @Override
+      public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+        Log.e(APP_INFO_TAG, "WebView renderer gone (crashed=" + detail.didCrash() + "), recreating");
+        if (view == webView) {
+          webView = null;
+        }
+        ViewGroup parent = (ViewGroup) view.getParent();
+        if (parent != null) {
+          parent.removeView(view);
+        }
+        view.destroy();
+        mainHandler.postDelayed(() -> {
+          if (!isFinishing() && !isDestroyed()) {
+            recreate();
+          }
+        }, 1000);
+        return true;
+      }
     });
 
     WebSettings settings = webView.getSettings();
@@ -250,6 +277,45 @@ public final class MainActivity extends Activity {
           setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         }
       });
+    }
+
+    /* Window brightness for this activity only (no system permission needed).
+       A value below zero hands brightness back to the system setting. */
+    @JavascriptInterface
+    public void setBrightness(float level) {
+      mainHandler.post(() -> {
+        if (isFinishing() || isDestroyed()) {
+          return;
+        }
+        WindowManager.LayoutParams lp = getWindow().getAttributes();
+        lp.screenBrightness = level < 0
+          ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+          : Math.max(0.01f, Math.min(1f, level));
+        getWindow().setAttributes(lp);
+      });
+    }
+
+    /* Battery state from the sticky ACTION_BATTERY_CHANGED broadcast: level (%),
+       temperature (deg C), whether it is plugged in. Used to back off effects when hot. */
+    @JavascriptInterface
+    public String getBattery() {
+      try {
+        Intent i = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if (i == null) {
+          return "";
+        }
+        int level = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        int scale = i.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
+        int temp = i.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1);
+        int plugged = i.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+        JSONObject o = new JSONObject();
+        o.put("level", scale > 0 && level >= 0 ? level * 100 / scale : -1);
+        o.put("temp", temp >= 0 ? temp / 10.0 : -1);
+        o.put("plugged", plugged != 0);
+        return o.toString();
+      } catch (Exception e) {
+        return "";
+      }
     }
 
     @JavascriptInterface
@@ -414,6 +480,7 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onDestroy() {
+    mainHandler.removeCallbacksAndMessages(null);
     stopWebService();
     if (webView != null) {
       ViewGroup parent = (ViewGroup) webView.getParent();

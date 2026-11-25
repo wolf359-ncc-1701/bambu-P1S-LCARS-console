@@ -2,33 +2,47 @@
   <div
     class="lcars"
     :lang="lang"
-    :style="stageStyle"
+    :style="[stageStyle, { '--xw': `${stage.wing}px` }]"
     :data-mood="mood"
     :data-alert="alertState"
+    :data-tier="kiosk.tier"
     @pointerdown.capture="touched"
     @keydown.capture="touched"
   >
     <!-- ===== frame: two elbowed frames, cut bars, notches. Static, drawn once. ===== -->
-    <svg class="frame" width="640" height="360" viewBox="0 0 640 360" aria-hidden="true">
+    <svg ref="frameEl" class="frame" :width="stage.w" height="360" :viewBox="`0 0 ${stage.w} 360`" aria-hidden="true">
       <path class="fa" :d="F.upper" />
       <rect x="86" y="9" width="5" height="5" fill="#000" />
       <rect class="fb" x="244" y="48" width="136" height="8" />
       <rect class="fc" x="384" y="48" width="68" height="8" />
       <rect class="fa" x="456" y="48" width="132" height="8" />
-      <rect class="fb" x="592" y="48" width="44" height="8" />
+      <rect class="fb" x="592" y="48" :width="44 + stage.wing" height="8" />
 
       <path class="fa" :d="F.lowerTop" />
       <rect class="fc" x="244" y="62" width="86" height="8" />
       <rect class="fa" x="334" y="62" width="166" height="8" />
       <rect class="fb" x="504" y="62" width="56" height="8" />
-      <rect class="fa" x="564" y="62" width="72" height="8" />
+      <rect class="fa" x="564" y="62" :width="72 + stage.wing" height="8" />
 
       <path class="fb" :d="F.lowerBottom" />
       <rect x="86" y="343" width="5" height="5" fill="#000" />
       <rect class="fa" x="244" y="350" width="156" height="6" />
       <rect class="fc" x="404" y="350" width="66" height="6" />
-      <rect class="fb" x="474" y="350" width="162" height="6" />
+      <rect class="fb" x="474" y="350" :width="162 + stage.wing" height="6" />
       <rect class="fc" x="4" y="300" width="92" height="19" />
+
+      <!-- micro texture on the frame: data-block cells and pips on unrelated periods -->
+      <g v-amb="[2.6, 9]">
+        <rect v-for="i in 10" :key="`db${i}`" data-amb :x="406 + i * 6" y="351" width="4" height="4" class="pip-c" />
+      </g>
+      <g v-amb="[4.7, 13]">
+        <rect v-for="i in 5" :key="`tp${i}`" data-amb :x="460 + i * 22" y="50" width="10" height="4" class="pip-o" />
+      </g>
+      <g v-amb="[11, 29]">
+        <rect v-for="i in 4" :key="`lp${i}`" data-amb :x="340 + i * 30" y="64" width="14" height="4" class="pip-g" />
+      </g>
+      <!-- telemetry heartbeat: flashes when a status packet arrives (at most every 2 s) -->
+      <rect ref="beat" x="596" y="50" width="12" height="4" class="beat" />
     </svg>
 
     <!-- product name in the wide stem, light weight -->
@@ -41,7 +55,7 @@
     <LLights class="bar-lights2" :n="5" :seed="8" :period="[2.5, 7]" :palette="['var(--g5)', 'var(--c4)']" />
 
     <!-- ===== header ===== -->
-    <button type="button" class="pill cond" :class="`cond-${condition}`" @click="goAlerts">
+    <button ref="condEl" type="button" class="pill cond" :class="`cond-${condition}`" @click="goAlerts">
       <span class="pill-t">{{ conditionLabel }}</span>
       <span v-if="alertCount" class="pill-n">{{ alertCount }}</span>
     </button>
@@ -64,17 +78,19 @@
         v-for="(item, i) in NAV"
         :key="item.key"
         class="nav-b"
+        :class="{ strobe: pendingKey === item.key }"
         :style="{ top: `${95 + i * 41}px` }"
         :label="t(`x.nav_${item.key === 'setting' ? 'settings' : item.key}`)"
         :code="item.code"
         :tone="item.tone"
         :active="activeKey === item.key"
+        :sound="item.key === 'files' ? 'library' : 'nav'"
         @press="go(item)"
       />
     </nav>
 
     <!-- ===== content ===== -->
-    <main class="content">
+    <main class="content" :style="{ width: `${532 + stage.wing}px` }">
       <RouterView v-slot="{ Component }">
         <component :is="Component" :key="routeKey" />
       </RouterView>
@@ -94,13 +110,16 @@ import { useRoute, useRouter } from 'vue-router'
 import { getPrinterConnectionMode, client } from '../printer'
 import { bindPrinterClient, unbindPrinterClient } from '../stores/printer'
 import { getCurrentDevice } from '../utils/device'
-import { flick } from './ambient'
+import { flick, pulse } from './ambient'
 import { elbow } from './geom'
 import { loadHms } from './hms'
-import { useStageFit } from './stage'
+import { stage, useStageFit } from './stage'
 import { usePlant } from './systems'
 import { ui } from './ui'
 import { startChamber } from './chamber'
+import { initKiosk, kiosk, wake } from './kiosk'
+import { alertStart, alertStop, initSound, play, voice } from './sfx'
+import { GcodeState } from '@bambulab-p1screen/printer-api'
 import { same } from './i18n'
 import LBtn from './components/LBtn.vue'
 import LLights from './components/LLights.vue'
@@ -113,7 +132,7 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const stageStyle = useStageFit()
-const { device, modules, condition, connected } = usePlant()
+const { device, modules, condition, connected, active } = usePlant()
 
 const F = {
   upper: elbow({ x: 4, y: 4, w: 236, h: 52, bar: 8, stem: 92, R: 20, r: 10, corner: 'bl' }),
@@ -197,6 +216,34 @@ let clockTimer = 0
 const titleEl = ref<HTMLElement | null>(null)
 watch(() => section.value.key, () => flick(titleEl.value, 2))
 
+/* ---- cut, restyle, stagger: the incoming tab strobes while its page arrives ---- */
+const pendingKey = ref('')
+let pendingTimer = 0
+watch(activeKey, (k) => {
+  pendingKey.value = k
+  window.clearTimeout(pendingTimer)
+  pendingTimer = window.setTimeout(() => { pendingKey.value = '' }, 1160)
+})
+
+/* ---- frame: heartbeat on telemetry, a sweep when the condition changes ---- */
+const frameEl = ref<SVGSVGElement | null>(null)
+const condEl = ref<HTMLElement | null>(null)
+const beat = ref<SVGRectElement | null>(null)
+let lastBeat = 0
+watch(device, () => {
+  const now = Date.now()
+  if (now - lastBeat < 2000 || document.hidden) return
+  lastBeat = now
+  pulse(beat.value, 'beat-on', 420)
+})
+const sweep = (el: Element | null) => pulse(el, 'sweep', 460)
+watch(condition, (c, prev) => {
+  if (prev && c !== prev && (c === 'yellow' || c === 'red')) {
+    sweep(frameEl.value)
+    sweep(condEl.value)
+  }
+})
+
 /* ---- alert tables load only once something needs them ---- */
 watch(() => [alertCount.value, device.value?.print_error], ([n, err]) => {
   if (n || err) loadHms()
@@ -216,8 +263,13 @@ const autoActive = computed({ get: () => ui.autoActive, set: (v: boolean) => { u
 let lastInput = Date.now()
 let autoTimer = 0
 
-const touched = () => {
+let quietHandback = false
+const touched = (e?: Event) => {
   lastInput = Date.now()
+  wake()
+  // a wake-up touch on a control lets the control speak; only a bare touch hands back audibly
+  const target = e?.target as Element | null
+  if (autoActive.value && target?.closest?.('button,[role=switch],[role=slider],[role=button]')) quietHandback = true
   autoActive.value = false
 }
 const toggleAuto = () => {
@@ -244,14 +296,67 @@ const autoTick = () => {
 
 const booting = ref(true)
 
+/* ---- sound: events only, never telemetry ---- */
+// red alert sounds while the emblem is up; acknowledging it silences the klaxon
+// sound follows the alert itself, not whether the emblem is shown (the alert log hides it)
+const alertSounding = computed(() => condition.value === 'red' && ui.ackedError !== device.value?.print_error)
+watch(alertSounding, (on) => { if (on) alertStart(); else alertStop() })
+watch(condition, (c, prev) => {
+  if (c === 'yellow' && prev === 'green') play('caution')
+  if (c === 'red' || c === 'yellow') wake()
+})
+watch(() => device.value?.gcode_state, (s, prev) => {
+  if (!prev || s === prev) return
+  if (s === GcodeState.Running && (prev === GcodeState.Prepare || prev === GcodeState.Idle || prev === GcodeState.Slicing)) play('printStart')
+  else if (s === GcodeState.Finish && prev === GcodeState.Running) play('printDone')
+  else if (s === GcodeState.Pause && prev === GcodeState.Running) play('pause')
+})
+// a filament change starts (target differs from the loaded slot)
+const slot = (v: unknown) => (v === undefined || v === null || v === '' ? null : String(v))
+watch(() => [slot(device.value?.ams?.tray_now), slot(device.value?.ams?.tray_tar)] as const, ([now, tar], [pNow, pTar]) => {
+  // only real swaps on a connected printer: no sound on first data, disconnect or device switch
+  if (!connected.value || now === null || tar === null || pNow === null || pTar === null) return
+  if (now !== tar && pNow === pTar && tar !== '255') play('feed')
+  else if (now === tar && pNow !== pTar && now !== '255') play('fed')
+})
+// AMS drying switched on or off on any unit
+watch(() => (device.value?.ams?.ams ?? []).map(u => (Number(u.dry_time) > 0 ? 1 : 0)).join(''), (v, prev) => {
+  if (prev === undefined || v === prev || v.length !== prev.length) return
+  play(v.split('').some((c, i) => c === '1' && prev[i] === '0') ? 'dryOn' : 'dryOff')
+})
+// the library computer speaks, rarely (English only)
+// opening the library speaks instead of a second tone (English only, rarely)
+watch(activeKey, (k) => {
+  if (k === 'files') play('voice:library')
+})
+// first status after boot
+let readyPlayed = false
+watch(device, (d) => {
+  if (d && !readyPlayed) {
+    readyPlayed = true
+    play('ready')
+  }
+})
+watch(autoActive, (on, was) => {
+  if (on) play('autoOn')
+  else if (was && !quietHandback) play('handback')
+  quietHandback = false
+})
+
 onMounted(() => {
   bindPrinterClient()
   startChamber()
+  voice.allowed = () => lang.value === 'en'
+  initSound(() => autoActive.value || Date.now() - lastInput > 60000)
+  // backlight stays up while the printer works, an alert is up or someone was here lately
+  initKiosk(() => active.value || condition.value === 'red' || condition.value === 'yellow' || Date.now() - lastInput < 300000)
   tickClock()
   clockTimer = window.setInterval(() => { if (!document.hidden) tickClock() }, 1000)
   autoTimer = window.setInterval(autoTick, 5000)
 })
 onBeforeUnmount(() => {
+  window.clearTimeout(pendingTimer)
+  alertStop(false)
   unbindPrinterClient()
   window.clearInterval(clockTimer)
   window.clearInterval(autoTimer)
@@ -263,6 +368,12 @@ onBeforeUnmount(() => {
 .fa { fill: var(--fa); }
 .fb { fill: var(--fb); }
 .fc { fill: var(--fc); }
+.pip-c { fill: var(--c3); }
+.pip-o { fill: #000; opacity: .5; }
+.pip-g { fill: #000; opacity: .4; }
+.beat { fill: #000; opacity: .25; }
+.beat.beat-on { animation: beat .4s step-end 1; }
+@keyframes beat { 0% { fill: var(--c5); opacity: 1 } 50% { opacity: .6 } 100% { opacity: .25 } }
 
 .stem-name {
   position: absolute;

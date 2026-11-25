@@ -27,6 +27,7 @@ const zh = {
   suspend: '暂停', resume: '继续', abort: '中止', skip: '跳过对象', establish: '添加设备',
   abort_title: '停止打印', abort_body: '确定要停止当前打印任务吗？此操作不可撤销。',
   diag_title: '状态巡检', diag_done: '巡检完成', zoom_title: '熔融沉积成型', zoom_layer: '层高', zoom_line: '线宽', zoom_now: '当前层',
+  ready_thermal: '喷嘴 {n}° · 热床 {b}°', ready_ams: 'AMS 已装料 {n} 槽 · 湿度 {h} 级', ready_link: '打印机在线 · 信号 {s}%', ready_chamber: '仓温 {c}°',
   st_off: '离线', st_standby: '待机', st_nominal: '正常', st_caution: '注意', st_alert: '警报',
 
   // engineering
@@ -39,7 +40,7 @@ const zh = {
   fan_part_d: '工具头前方 · 冷却刚挤出的耗材', fan_aux_d: '左侧壁 · 大风量侧吹', fan_chamber_d: '后壁 · 排出舱内热气',
   speed_idle: '空闲时不能调速，只能预览', warp_silent: '静音', warp_standard: '标准', warp_sport: '运动', warp_ludicrous: '狂暴',
   m_cool: '层间冷却时间', m_bond: '层间粘合', m_overhang: '悬垂成型', qualitative: '定性示意，非测量值',
-  flow_hot: '热', flow_cold: '冷', preview: '预览',
+  flow_hot: '热', flow_cold: '冷', preview: '预览', simulated: '示意动画', live: '当前', speed_idle_s: '仅打印中可调', live_engaged: '已生效',
   light_on: '照明已开', light_off: '照明已关',
 
   // align
@@ -91,8 +92,10 @@ const zh = {
   no_data: '无数据', cal_level: '热床调平', cal_res: '振动补偿', cal_motor: '电机降噪',
   cal_ready: '就绪', cal_busy: '打印机忙', cal_running: '进行中', cal_go: '开始校准',
   recovery: '丢步自动恢复', language: '语言', lang_auto: '跟随系统', build: '版本',
+  k_dim: '闲置自动调暗', k_fx: '特效', k_fx_full: '完整', k_fx_low: '已降级（发热或卡顿）', k_batt: '电池', k_err: '页面错误',
+  hc_core: '喷嘴', hc_pad: '热床', hc_bay: '仓温', hc_layer: '层', silhouette: '按缩略图轮廓估算',
   hide_bar: '横屏隐藏状态栏', land_lock: '强制横屏', awake: '保持亮屏', export: '导出设备信息', check_update: '检查更新',
-  rev_available: '有新版本',
+  rev_available: '有新版本', sound: '提示音', sound_d: '按键、打印事件与警报的提示音，音量较低',
   linking: '正在连接', vessel_selected: '已切换设备',
 
   // alerts
@@ -128,6 +131,7 @@ const en: Messages = {
   suspend: 'SUSPEND', resume: 'RESUME', abort: 'ABORT', skip: 'SKIP OBJECT', establish: 'ESTABLISH LINK',
   abort_title: 'ABORT REPLICATION', abort_body: 'STOP THE CURRENT PRINT? THIS CANNOT BE UNDONE.',
   diag_title: 'LEVEL 3 DIAGNOSTIC', diag_done: 'DIAGNOSTIC COMPLETE', zoom_title: 'FUSED DEPOSITION', zoom_layer: 'LAYER', zoom_line: 'LINE', zoom_now: 'STRATUM',
+  ready_thermal: 'THERMAL ENVELOPE • CORE {n}° • PAD {b}°', ready_ams: 'MATTER STORES • {n} SILOS CHARGED • MOISTURE LEVEL {h}', ready_link: 'LINK NOMINAL • SIGNAL {s}%', ready_chamber: 'BAY ATMOSPHERE • {c}°',
   st_off: 'OFF', st_standby: 'STANDBY', st_nominal: 'NOMINAL', st_caution: 'CAUTION', st_alert: 'ALERT',
 
   m_thermal: 'CORE • PAD', m_fans: 'COOLANT', m_speed: 'WARP', m_chamber: 'ATMOSPHERE', m_align: 'ALIGN', m_light: 'LIGHT',
@@ -139,7 +143,7 @@ const en: Messages = {
   fan_part_d: 'TOOLHEAD FRONT • QUENCHES FRESH MATTER', fan_aux_d: 'LEFT BULKHEAD • HIGH-FLOW CROSSWIND', fan_chamber_d: 'AFT BULKHEAD • EXHAUSTS BAY HEAT',
   speed_idle: 'WARP CHANGES NEED AN ACTIVE PRINT • PREVIEW ONLY', warp_silent: 'SILENT', warp_standard: 'STANDARD', warp_sport: 'SPORT', warp_ludicrous: 'LUDICROUS',
   m_cool: 'INTERLAYER COOLING', m_bond: 'LAYER BOND', m_overhang: 'OVERHANG FORM', qualitative: 'QUALITATIVE • NOT MEASURED',
-  flow_hot: 'HOT', flow_cold: 'COLD', preview: 'PREVIEW',
+  flow_hot: 'HOT', flow_cold: 'COLD', preview: 'PREVIEW', simulated: 'SIMULATION', live: 'LIVE', speed_idle_s: 'ACTIVE PRINT ONLY', live_engaged: 'ENGAGED',
   light_on: 'ILLUMINATION ON', light_off: 'ILLUMINATION OFF',
 
   xy_plane: 'XY DATUM PLANE', z_plane: 'Z ELEVATION', iso_view: 'OVERVIEW',
@@ -185,8 +189,10 @@ const en: Messages = {
   no_data: 'NO DATA', cal_level: 'PAD SURVEY', cal_res: 'RESONANCE SWEEP', cal_motor: 'MOTOR NOISE',
   cal_ready: 'READY', cal_busy: 'BAY OCCUPIED', cal_running: 'IN PROGRESS', cal_go: 'COMMENCE DIAGNOSTIC',
   recovery: 'STEP-LOSS RECOVERY', language: 'LANGUAGE', lang_auto: 'SYSTEM', build: 'BUILD',
+  k_dim: 'IDLE DIMMING', k_fx: 'EFFECTS', k_fx_full: 'FULL', k_fx_low: 'REDUCED • HEAT OR LOAD', k_batt: 'CELL', k_err: 'FAULTS',
+  hc_core: 'CORE', hc_pad: 'PAD', hc_bay: 'BAY', hc_layer: 'STRATUM', silhouette: 'SILHOUETTE EST.',
   hide_bar: 'STATUS BAR SUPPRESSION', land_lock: 'LANDSCAPE LOCK', awake: 'DISPLAY PERSISTENCE', export: 'EXPORT TELEMETRY', check_update: 'CHECK REVISION',
-  rev_available: 'REVISION AVAILABLE',
+  rev_available: 'REVISION AVAILABLE', sound: 'AUDIO', sound_d: 'CONSOLE TONES FOR PRESSES, PRINT EVENTS AND ALERTS',
   linking: 'LINKING', vessel_selected: 'VESSEL SELECTED',
 
   alert_none: 'NO ALERT CONDITIONS', alert_loading: 'LOADING DATABASE', alert_scan: 'SCAN FOR THE FIX', alert_nosel: 'NO RECORD SELECTED',

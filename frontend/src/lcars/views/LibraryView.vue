@@ -18,7 +18,8 @@
         v-for="(f, i) in files"
         :key="f.path"
         type="button"
-        class="rec"
+        class="rec stg"
+        :style="{ animationDelay: `${.36 + Math.min(i, 6) * .05}s` }"
         :class="{ on: f.path === sel?.path }"
         @click="select(f)"
       >
@@ -196,13 +197,13 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.lib { position: relative; width: 532px; height: 268px; }
+.lib { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; }
 .lbl { font-size: 15px; line-height: 17px; font-weight: 600; color: var(--ft); letter-spacing: .03em; }
-.hd { position: absolute; left: 0; top: 0; width: 300px; height: 24px; }
+.hd { position: absolute; left: 0; top: 0; width: calc(300px + var(--xw, 0px) * .55); height: 24px; }
 .hd .cap { position: absolute; left: 130px; top: 3px; }
 .rf { position: absolute; right: 0; top: 0; width: 84px; height: 22px; font-size: 13px; }
 
-.list { position: absolute; left: 0; top: 28px; width: 300px; height: 240px; }
+.list { position: absolute; left: 0; top: 28px; width: calc(300px + var(--xw, 0px) * .55); height: 240px; }
 .msg { padding: 12px 4px; font-size: 14px; color: var(--g5); text-transform: none; }
 .blink { animation: blink 1s steps(1, end) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
@@ -229,15 +230,15 @@ onBeforeUnmount(() => {
 .rec-d { position: absolute; left: 34px; top: 21px; font-size: 11px; color: var(--g4); letter-spacing: .04em; }
 .rec-s { position: absolute; right: 6px; top: 9px; font-size: 15px; color: var(--c4); }
 
-.det { position: absolute; left: 310px; top: 0; width: 222px; height: 268px; }
-.view { position: absolute; left: 0; top: 0; width: 128px; height: 112px; background: var(--g1); }
-.view img { position: absolute; left: 10px; top: 6px; width: 108px; height: 100px; object-fit: contain; }
+.det { position: absolute; left: calc(310px + var(--xw, 0px) * .55); top: 0; width: calc(222px + var(--xw, 0px) * .45); height: 268px; }
+.view { position: absolute; left: 0; top: 0; width: calc(128px + var(--xw, 0px) * .45); height: 112px; background: var(--g1); }
+.view img { position: absolute; left: 10px; top: 6px; width: calc(108px + var(--xw, 0px) * .45); height: 100px; object-fit: contain; }
 .view-m { position: absolute; left: 8px; right: 8px; top: 46px; text-align: center; }
 .ret { position: absolute; left: 0; top: 0; }
-.d-n { position: absolute; left: 136px; top: 0; width: 86px; font-size: 14px; line-height: 16px; color: var(--o5); text-transform: none; white-space: normal; max-height: 60px; }
-.d-r { position: absolute; left: 136px; top: 66px; width: 86px; line-height: 13px; }
+.d-n { position: absolute; left: calc(136px + var(--xw, 0px) * .45); top: 0; width: 86px; font-size: 14px; line-height: 16px; color: var(--o5); text-transform: none; white-space: normal; max-height: 60px; }
+.d-r { position: absolute; left: calc(136px + var(--xw, 0px) * .45); top: 66px; width: 86px; line-height: 13px; }
 .d-r span { display: block; }
-.d-t { position: absolute; left: 0; top: 120px; width: 222px; }
-.d-t2 { position: absolute; left: 0; top: 158px; width: 222px; }
-.go { position: absolute; left: 0; top: 200px; width: 222px; height: 64px; font-size: 18px; }
+.d-t { position: absolute; left: 0; top: 120px; width: calc(222px + var(--xw, 0px) * .45); }
+.d-t2 { position: absolute; left: 0; top: 158px; width: calc(222px + var(--xw, 0px) * .45); }
+.go { position: absolute; left: 0; top: 200px; width: calc(222px + var(--xw, 0px) * .45); height: 64px; font-size: 18px; }
 </style>

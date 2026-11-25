@@ -3,8 +3,21 @@
        datum plane, an XY move swings the view to look straight down on the bed; a Z move
        swings it to the front elevation so the pad's travel is seen edge-on. -->
   <div class="al">
+    <LHoloPrinter
+      v-if="holo"
+      class="view stg"
+      data-o="1"
+      :w="250"
+      :h="238"
+      :cam="cam"
+      :tool="{ x: toolPos.x, y: toolPos.y }"
+      :bed-z="toolPos.z"
+      :states="{ core: systems.core, pad: systems.pad }"
+      :focus="['gantry', 'xRail', 'head', 'bed', 'screws']"
+      @fallback="holo = false"
+    />
     <svg class="view stg" data-o="1" width="250" height="238" viewBox="0 0 250 238" aria-hidden="true">
-      <LPrinter3D :cam="cam" :tool="{ x: toolPos.x, y: toolPos.y }" :bed-z="toolPos.z" :core="systems.core" :pad="systems.pad" :show="{ walls: view === 'iso' }" />
+      <LPrinter3D v-if="!holo" :cam="cam" :tool="{ x: toolPos.x, y: toolPos.y }" :bed-z="toolPos.z" :core="systems.core" :pad="systems.pad" :show="{ walls: view === 'iso' }" />
       <!-- datum annotations -->
       <g v-if="view === 'top'" class="dat">
         <path :d="`M${a.nozzle[0]} 6 V232 M6 ${a.nozzle[1]} H244`" stroke="var(--o4)" stroke-dasharray="3 4" />
@@ -18,6 +31,8 @@
         <text x="8" y="232">Z {{ toolPos.z.toFixed(0) }} MM</text>
       </g>
       <text v-else x="8" y="232" class="dat-t">{{ t('x.iso_view') }}</text>
+      <!-- optical lock: four corner brackets snap on when the view lands -->
+      <path v-if="settled" :key="settled" class="lockb" d="M8 22 V8 H22 M228 8 H242 V22 M242 196 V210 H228 M22 210 H8 V196" fill="none" stroke="var(--c4)" stroke-width="2" />
     </svg>
 
     <div class="views stg" data-o="2">
@@ -54,12 +69,16 @@ import { sector } from '../../geom'
 import { anchors, homeEstimate, jogEstimate, toolPos, useCamera, type ViewName } from '../../plant3d'
 import { usePlant } from '../../systems'
 import { notice, run } from '../../ui'
+import { play } from '../../sfx'
 import LBtn from '../../components/LBtn.vue'
 import LPrinter3D from '../../components/LPrinter3D.vue'
+import LHoloPrinter from '../../components/LHoloPrinter.vue'
+import { holoSupported } from '../../holo/gl'
 
 const { t } = useI18n()
 const { device, systems } = usePlant()
-const { cam, view, go, dispose } = useCamera('iso', 125, 110, 1)
+const holo = ref(holoSupported())
+const { cam, view, settled, go, dispose } = useCamera('iso', 125, 110, 1)
 onBeforeUnmount(dispose)
 
 const a = computed(() => anchors(cam.value, { x: toolPos.x, y: toolPos.y }, toolPos.z))
@@ -107,6 +126,8 @@ const move = async (axis: 'x' | 'y' | 'z', step: number, e?: Event) => {
   // jogging the emitter mid-replication would collide with the part
   if (busy.value) {
     notice(t('x.printing_lock'), 'o')
+    play('deny')
+    play('voice:unable')
     return
   }
   go(axis === 'z' ? 'front' : 'top')
@@ -123,6 +144,8 @@ const home = async (e?: Event) => {
   if (e?.currentTarget) flick(e.currentTarget as Element, 1)
   if (busy.value) {
     notice(t('x.printing_lock'), 'o')
+    play('deny')
+    play('voice:unable')
     return
   }
   go('iso')
@@ -137,10 +160,15 @@ const home = async (e?: Event) => {
 </script>
 
 <style scoped>
-.al { position: relative; width: 532px; height: 238px; }
+.al { position: relative; width: calc(532px + var(--xw, 0px)); height: 238px; }
+.view { margin-left: calc(var(--xw, 0px) / 4); }
+.views, .dial, .xy-l, .st { margin-left: calc(var(--xw, 0px) / 2); }
+.zc, .homeb { margin-left: var(--xw, 0px); }
 .view { position: absolute; left: 0; top: 0; }
 .dat text, .dat-t { font: 600 13px var(--lfont); fill: var(--o5); }
 .dat-t { fill: var(--g5); }
+.lockb { animation: lockb .5s step-end 1 forwards; }
+@keyframes lockb { 0% { opacity: 1 } 20% { opacity: .3 } 40% { opacity: 1 } 80% { opacity: 0 } 100% { opacity: 0 } }
 .views { position: absolute; left: 258px; top: 0; width: 274px; height: 24px; }
 .vb { position: absolute; top: 0; width: 88px; height: 24px; font-size: 13px; }
 .dial { position: absolute; left: 256px; top: 32px; }
