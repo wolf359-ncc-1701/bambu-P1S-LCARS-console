@@ -3,6 +3,16 @@
    backdrop-filter, no box-shadow, no blur. Colour changes are instant; only
    opacity and transform ever transition. */
 
+/* Chinese (OFL, see fonts/OFL-*.txt): labels in WD-XL Lubrifont, body text in Glow Sans
+   Condensed, Simplified and Traditional, made by scripts/build-cjk-fonts.py with their
+   @font-face rules. They hold Chinese only (digits and Latin always come from Antonio), and
+   their outlines are already scaled and raised so the Chinese ink centre matches Antonio's
+   capitals and digits, on Antonio's line metrics: Chinese and English share one font size and
+   one line box. Every font has the common characters of both scripts, so a printer or file
+   name in either script stays in one font; those extra characters live in separate files that
+   are fetched only when one is drawn. English mode loads none of them. */
+@import './fonts/cjk-fonts.css';
+
 @font-face {
   font-family: 'Antonio';
   font-style: normal;
@@ -19,8 +29,22 @@
   --y4: #F2B84B;
   /* frame accent: slate at rest, recoloured by mood and alert state */
   --fa: var(--g3); --fb: var(--g4); --fc: var(--g2); --ft: var(--o4);
-  --lfont: Antonio, 'Arial Narrow', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  /* labels (buttons, bars, tabs, pills: 13px and up) and body text (data rows, notes, hints,
+     anything 12px and under). Each list is written out whole for each script: a font-family
+     var() is resolved where it is used, so changing one part of it lower down would not reach */
+  --lfont: Antonio, 'LCARS Label SC', 'LCARS Hei SC', 'Arial Narrow', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --lfont-body: Antonio, 'LCARS Hei SC', 'Arial Narrow', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
+[lang=zh-Hant] {
+  --lfont: Antonio, 'LCARS Label TC', 'LCARS Hei TC', 'LCARS Hei SC', 'Arial Narrow', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  --lfont-body: Antonio, 'LCARS Hei TC', 'LCARS Hei SC', 'Arial Narrow', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+}
+/* Simplified text inside Traditional mode (the HMS tables exist only in Simplified) */
+[lang=zh-Hans] {
+  --lfont: Antonio, 'LCARS Label SC', 'LCARS Hei SC', 'Arial Narrow', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --lfont-body: Antonio, 'LCARS Hei SC', 'Arial Narrow', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.lcars [lang=zh-Hans] { font-family: var(--lfont-body); }
 
 html, body, #app {
   width: 100%;
@@ -40,6 +64,7 @@ html, body, #app {
   background: #000;
   color: var(--g6);
   font-family: var(--lfont);
+  font-synthesis: none; /* the label font has one weight: never a fake bold */
   text-transform: uppercase;
   transform-origin: 0 0;
   -webkit-tap-highlight-color: transparent;
@@ -54,10 +79,44 @@ html, body, #app {
 .lcars[data-alert=yellow] { --fa: #8f6a2a; --fb: var(--y4); --fc: #4a3a1c; --ft: var(--y4); }
 .lcars[data-alert=red] { --fa: #9a1e12; --fb: var(--o1); --fc: #4a120c; --ft: #FF3B24; }
 
-.zh { text-transform: none; letter-spacing: 0; font-weight: 500; }
-/* Chinese mode: system CJK font, zero tracking. */
-.lcars[lang=zh] { letter-spacing: 0; }
-.lcars[lang=zh] .lb { letter-spacing: 0; }
+/* Chinese: no tracking, except a little air between the label font's characters (it sets tight) */
+.lcars:lang(zh) { letter-spacing: 0; }
+.lcars:lang(zh) .lb { letter-spacing: .02em; }
+/* body text: data rows, notes, hints, small type */
+.body-t { font-family: var(--lfont-body); }
+/* Chinese at 12px and under is body text too (the label font is for 13px and up). Found by
+   walking every page in Chinese and listing small Chinese text still in the label font. */
+.lcars:lang(zh) .pill-t,
+.lcars:lang(zh) .vs-t,
+.lcars:lang(zh) .vs-k,
+.lcars:lang(zh) .vs-st,
+.lcars:lang(zh) .fn,
+.lcars:lang(zh) .fn-i,
+.lcars:lang(zh) .pre,
+.lcars:lang(zh) .ds,
+.lcars:lang(zh) .live,
+.lcars:lang(zh) .lab,
+.lcars:lang(zh) .z-l,
+.lcars:lang(zh) .st,
+.lcars:lang(zh) .aux-l,
+.lcars:lang(zh) .rec-d,
+.lcars:lang(zh) .title-sub,
+.lcars:lang(zh) .ship-s,
+.lcars:lang(zh) .tg-s,
+.lcars:lang(zh) .k,
+.lcars:lang(zh) .dm-b,
+.lcars:lang(zh) .card-l,
+.al-root:lang(zh) .al-what,
+.al-root:lang(zh) .al-p,
+.al-root:lang(zh) .al-k,
+/* and body text at any size: confirm text, keypad captions, file names, alert text, hints, dates */
+.lcars:lang(zh) .cf-body,
+.lcars:lang(zh) .kp-sub,
+.lcars:lang(zh) .rec-t,
+.lcars:lang(zh) .rec-n,
+.lcars:lang(zh) .sb-date,
+.lcars:lang(zh) .ra-text,
+.lcars:lang(zh) .task-state { font-family: var(--lfont-body); }
 
 /* ---------- block button ---------- */
 .lb {
@@ -81,7 +140,7 @@ html, body, #app {
 }
 .lb[disabled] { opacity: .28; cursor: default; }
 .lb .lb-t { position: absolute; right: 7px; bottom: 4px; }
-.lb .lb-s { position: absolute; left: 7px; top: 4px; font-size: 10px; font-weight: 500; opacity: .75; }
+.lb .lb-s { position: absolute; left: 7px; top: 4px; font-family: var(--lfont-body); font-size: 10px; font-weight: 500; opacity: .75; }
 .lb .lb-dot + .lb-s { left: 13px; }
 .lb .lb-dot { position: absolute; left: 4px; top: 4px; width: 4px; height: 4px; background: #000; }
 .lb.pl { border-radius: 20px 0 0 20px; }
@@ -114,8 +173,8 @@ html, body, #app {
 }
 
 /* ---------- text ---------- */
-.cap { font-size: 11px; font-weight: 500; letter-spacing: .05em; color: var(--g5); }
-.lcars[lang=zh] .cap { letter-spacing: 0; }
+.cap { font-family: var(--lfont-body); font-size: 11px; font-weight: 500; letter-spacing: .05em; color: var(--g5); }
+.lcars:lang(zh) .cap { letter-spacing: 0; }
 .num { font-weight: 300; color: var(--o5); letter-spacing: 0; }
 .dim { opacity: .45; }
 .c-c4 { color: var(--c4); } .c-c5 { color: var(--c5); } .c-o4 { color: var(--o4); } .c-o5 { color: var(--o5); }

@@ -70,7 +70,7 @@ import LSlider from './LSlider.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()
-const lang = computed(() => (locale.value.startsWith('zh') ? 'zh' : 'en'))
+const lang = computed(() => (locale.value === 'zh-Hant' ? 'zh-Hant' : locale.value.startsWith('zh') ? 'zh' : 'en'))
 
 const EDGES: Edge[] = ['t', 'r', 'b', 'l']
 type Dir = { k: 'up' | 'down' | 'left' | 'right', dx: number, dy: number, g: string }
@@ -183,7 +183,7 @@ onBeforeUnmount(release)
   text-transform: uppercase;
   -webkit-tap-highlight-color: transparent;
 }
-.al-root[lang=zh] { letter-spacing: 0; }
+.al-root:lang(zh) { letter-spacing: 0; }
 .al-box { position: fixed; pointer-events: none; }
 .al-edge { position: absolute; background: var(--y4); }
 .al-t { left: 0; top: 0; right: 0; height: 5px; }

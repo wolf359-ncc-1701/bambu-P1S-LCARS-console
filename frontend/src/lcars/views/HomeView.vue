@@ -188,6 +188,7 @@ import { FanType, GcodeState } from '@bambulab-p1screen/printer-api'
 import { client } from '../../printer'
 import { usePrintState } from '../printStatus'
 import hints from '../../assets/hints.json'
+import { zhHantHints } from '../../i18n/zhHant'
 import { ambientAdd, ambientRemove } from '../ambient'
 import { filler } from '../geom'
 import { etaAt, usePlant, t0, type SysId } from '../systems'
@@ -293,7 +294,7 @@ const stageCode = computed(() => (locale.value.startsWith('zh') ? '' : `STG ${St
 const remaining = computed(() => {
   const m = device.value?.mc_remaining_time ?? 0
   const h = Math.floor(m / 60), mm = m % 60
-  if (locale.value.startsWith('zh')) return h ? `${h}时${String(mm).padStart(2, '0')}分` : `${mm}分`
+  if (locale.value.startsWith('zh')) return h ? `${h}${t('x.u_hr')}${String(mm).padStart(2, '0')}${t('x.u_min')}` : `${mm}${t('x.u_min')}`
   return h ? `${h}H${String(mm).padStart(2, '0')}M` : `${mm}M`
 })
 const eta = computed(() => {
@@ -328,7 +329,7 @@ const blocks = computed(() => {
 })
 
 const hint = computed(() => {
-  const list: string[] = (hints as any)[locale.value.startsWith('zh') ? 'zh' : 'en']
+  const list: string[] = locale.value === 'zh-Hant' ? zhHantHints : (hints as any)[locale.value.startsWith('zh') ? 'zh' : 'en']
   return list[Math.floor(Date.now() / 600000) % list.length]
 })
 const codes = Array.from({ length: 4 }, () => `${filler()}  ${filler()}`)

@@ -130,7 +130,7 @@ const zh = {
 
   // keypad / confirm / common
   range: '范围', del: '删除', set: '设定', cancel: '取消', confirm: '确认', done: '已执行', failed: '失败：{message}',
-  sent: '已发送',
+  sent: '已发送', u_hr: '时', u_min: '分',
 }
 
 type Messages = typeof zh
@@ -250,7 +250,7 @@ const en: Messages = {
   alert_ack: 'ACKNOWLEDGE', alert_log: 'ALERT LOG', red_alert: 'ALERT', condition_red: 'CONDITION: RED',
 
   range: 'RANGE', del: 'DEL', set: 'SET', cancel: 'CANCEL', confirm: 'CONFIRM', done: 'DONE', failed: 'FAILED: {message}',
-  sent: 'SENT',
+  sent: 'SENT', u_hr: 'H', u_min: 'M',
 }
 
 export const lcarsMessages = { zh: { x: zh }, en: { x: en } }

@@ -37,7 +37,7 @@
 
     <div class="ra-info">
       <div class="ra-code num">{{ code }}</div>
-      <div class="ra-text">{{ text || t('x.cond_red') }}</div>
+      <div class="ra-text" :lang="text ? hmsLang(locale) : undefined">{{ text || t('x.cond_red') }}</div>
     </div>
     <LBtn class="ra-b1" :label="t('x.resume')" tone="o3" shape="pl" @press="resume" />
     <LBtn class="ra-b2" :label="t('x.alert_log')" tone="g3" @press="router.push('/alerts')" />
@@ -51,7 +51,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { client } from '../../printer'
 import { usePrinterStore } from '../../stores/printer'
-import { errorCode, errorText, hmsTables } from '../hms'
+import { errorCode, errorText, hmsLang, hmsTables } from '../hms'
 import { run, ui } from '../ui'
 import LBtn from './LBtn.vue'
 

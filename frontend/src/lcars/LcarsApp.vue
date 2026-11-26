@@ -74,7 +74,7 @@
     </button>
     <div v-show="!showRelink" ref="titleEl" class="title">
       <div class="title-main">{{ t(`x.sec_${section.key}`) }}</div>
-      <div class="title-sub"><template v-if="!same(t(`x.fn_${section.key}`), t(`x.sec_${section.key}`))">{{ t(`x.fn_${section.key}`) }} </template><span class="title-code">{{ lang === 'zh' ? section.code.replace(/^[A-Z]+ /, '') : section.code }}</span></div>
+      <div class="title-sub"><template v-if="!same(t(`x.fn_${section.key}`), t(`x.sec_${section.key}`))">{{ t(`x.fn_${section.key}`) }} </template><span class="title-code">{{ lang !== 'en' ? section.code.replace(/^[A-Z]+ /, '') : section.code }}</span></div>
     </div>
 
     <!-- ===== navigation stem ===== -->
@@ -199,7 +199,7 @@ const alertState = computed(() => (condition.value === 'red' ? 'red' : condition
 const alertCount = computed(() => device.value?.hms?.length ?? 0)
 
 const conditionLabel = computed(() => t(`x.cond_${condition.value}`))
-const lang = computed(() => (locale.value.startsWith('zh') ? 'zh' : 'en'))
+const lang = computed(() => (locale.value === 'zh-Hant' ? 'zh-Hant' : locale.value.startsWith('zh') ? 'zh' : 'en'))
 
 const model = computed(() => {
   const ota = modules.value?.find(m => m.name === 'ota')
@@ -603,7 +603,7 @@ onBeforeUnmount(() => {
 .title-code { margin-left: 4px; color: var(--fb); font-weight: 600; }
 
 .nav-b { position: absolute; left: 4px; width: 92px; height: 38px; font-size: 14px; }
-.lcars[lang=zh] .nav-b { font-size: 15px; }
+.lcars:lang(zh) .nav-b { font-size: 15px; }
 
 .content {
   position: absolute;

@@ -150,7 +150,7 @@
         <template v-if="iface === 'display'">
           <div class="langs">
             <span class="k">{{ t('x.language') }}</span>
-            <LBtn v-for="(l, i) in LANGS" :key="l.v" class="lang" :style="{ left: `${86 + i * 84}px` }" :label="l.label || t('x.lang_auto')" tone="g2" shape="pp" :active="langPref === l.v" @press="setLang(l.v)" />
+            <LBtn v-for="(l, i) in LANGS" :key="l.v" class="lang" :lang="l.lang" :style="{ left: `${86 + i * 84}px` }" :label="l.label || t('x.lang_auto')" tone="g2" shape="pp" :active="langPref === l.v" @press="setLang(l.v)" />
           </div>
           <LToggle class="if0" compact :on="soundOn" :label="t('x.sound')" @toggle="toggleSound" />
           <!-- night mode and its window: each hour button steps one hour -->
@@ -207,7 +207,7 @@ import { HomeFlagBit } from '@bambulab-p1screen/printer-api'
 import { client, connectPrinter, getPrinterConnectionMode } from '../../printer'
 import { refreshPrinter, usePrinterStore } from '../../stores/printer'
 import { getCurrentDevice, getDevices, setCurrentDevice, updateDevice, type DeviceConnectionMode } from '../../utils/device'
-import { getLocalePreference, setLocalePreference, type LocalePreference } from '../../i18n'
+import { detectLocale, getLocalePreference, setLocalePreference, type LocalePreference } from '../../i18n'
 import { MAC_RE, brokerUrl, chamber as ch, chamberLive, saveChamberConfig, type ChamberBroker } from '../chamber'
 import { usePlant } from '../systems'
 import { setSound, sound } from '../sfx'
@@ -417,9 +417,11 @@ const resetAlignAsk = async () => {
 }
 
 /* ---- interface ---- */
-const LANGS: { v: LocalePreference, label: string }[] = [
+// each language's name in its own script (and font)
+const LANGS: { v: LocalePreference, label: string, lang?: string }[] = [
   { v: 'auto', label: '' },
-  { v: 'zh', label: '中文' },
+  { v: 'zh', label: '简体中文', lang: 'zh-Hans' },
+  { v: 'zh-Hant', label: '繁體中文', lang: 'zh-Hant' },
   { v: 'en', label: 'ENGLISH' },
 ]
 const langPref = ref(getLocalePreference())
@@ -431,7 +433,7 @@ const toggleSound = (on: boolean) => {
 const setLang = (v: LocalePreference) => {
   langPref.value = v
   setLocalePreference(v)
-  locale.value = v === 'auto' ? (navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en') : v
+  locale.value = v === 'auto' ? detectLocale() : v
 }
 
 type Bridge = {

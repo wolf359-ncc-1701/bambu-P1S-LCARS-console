@@ -16,7 +16,7 @@
       >
         <span class="rec-sl"></span>
         <span class="rec-c">{{ hmsCode(m) }}</span>
-        <span class="rec-t ell">{{ text(m) || (hmsTables ? '—' : t('x.alert_loading')) }}</span>
+        <span class="rec-t ell" :lang="text(m) ? hmsLang(locale) : undefined">{{ text(m) || (hmsTables ? '—' : t('x.alert_loading')) }}</span>
       </button>
     </div>
 
@@ -24,7 +24,7 @@
       <template v-if="sel">
         <canvas ref="qr" class="qr" width="104" height="104"></canvas>
         <div class="d-c num">{{ hmsCode(sel) }}</div>
-        <div class="d-t">{{ text(sel) }}</div>
+        <div class="d-t body-t" :lang="hmsLang(locale)">{{ text(sel) }}</div>
         <div class="d-u cap">{{ t('x.alert_scan') }}</div>
       </template>
       <div v-else class="cap">{{ t('x.alert_nosel') }}</div>
@@ -37,7 +37,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DeviceHMS } from '@bambulab-p1screen/printer-api'
 import { usePrinterStore } from '../../stores/printer'
-import { hmsCode, hmsLevel, hmsTables, hmsText, hmsUrl, loadHms } from '../hms'
+import { hmsCode, hmsLang, hmsLevel, hmsTables, hmsText, hmsUrl, loadHms } from '../hms'
 
 const { t, locale } = useI18n()
 const { device } = usePrinterStore()
