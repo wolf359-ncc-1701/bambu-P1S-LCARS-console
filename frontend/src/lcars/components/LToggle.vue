@@ -1,6 +1,6 @@
 <template>
   <!-- A setting row: name on a dark bar, state in a capsule end-cap that flips instantly. -->
-  <div class="tg" :class="{ compact }" role="switch" tabindex="0" :aria-checked="on" :aria-label="label" @click="press" @keydown.enter.prevent="press" @keydown.space.prevent="press">
+  <div class="tg" :class="{ compact }" role="switch" tabindex="0" :aria-checked="on" :aria-label="label" :aria-disabled="disabled || undefined" @click="press" @keydown.enter.prevent="press" @keydown.space.prevent="press">
     <span class="tg-bar">
       <span class="tg-l">{{ label }}</span>
       <span v-if="sub" class="tg-s">{{ sub }}</span>
@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { flick } from '../ambient'
+import { hit } from '../ambient'
 import { play } from '../sfx'
 
 const props = defineProps<{ on: boolean, label: string, sub?: string, disabled?: boolean, compact?: boolean }>()
@@ -20,9 +20,10 @@ const emit = defineEmits<{ (e: 'toggle', value: boolean): void }>()
 const cap = ref<HTMLElement | null>(null)
 const { t } = useI18n()
 
-const press = () => {
+const press = (e: Event) => {
   if (props.disabled) return
-  flick(cap.value, 1)
+  // by finger the shell has flashed the cap on pointerdown already; by keyboard flash here
+  if (e instanceof KeyboardEvent || (e as MouseEvent).detail === 0) hit(cap.value)
   play(props.on ? 'toggleOff' : 'toggleOn')
   emit('toggle', !props.on)
 }
@@ -30,7 +31,6 @@ const press = () => {
 
 <style scoped>
 .tg { position: relative; height: 34px; cursor: pointer; outline: none; }
-.tg:active { opacity: .75; }
 .tg-bar { position: absolute; left: 0; top: 0; right: 76px; height: 34px; background: var(--g1); padding: 3px 8px; }
 .tg-l { display: block; font-size: 14px; line-height: 15px; color: var(--g6); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tg-s { display: block; font-size: 10px; line-height: 12px; color: var(--g5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

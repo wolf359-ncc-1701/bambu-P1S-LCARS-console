@@ -4,8 +4,12 @@
    composition itself never reflows. A portrait screen turns the stage a quarter.
 
    For a screen that stays on for weeks the whole stage also drifts by a pixel or two every
-   half hour (image-retention guard for LCD panels), always inside its own margin. */
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+   half hour (image-retention guard for LCD panels), always inside its own margin.
+
+   Display alignment (align.ts) pulls edges in for a bezel and moves the console: the stage
+   is fitted into the area left inside the insets, then shifted by the offset. */
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { align, alignCss } from './align'
 
 export const STAGE_H = 360
 export const BASE_W = 640
@@ -13,7 +17,8 @@ export const MAX_W = 780
 // a wing narrower than this is not worth a column: letterbox instead
 const MIN_WING = 72
 
-export const stage = reactive({ w: BASE_W, wing: 0, scale: 1 })
+// area: the usable screen area inside the alignment insets, in CSS px of the viewport
+export const stage = reactive({ w: BASE_W, wing: 0, scale: 1, area: { x: 0, y: 0, w: 0, h: 0 } })
 
 const SHIFTS: [number, number][] = [[0, 0], [1, 1], [2, 0], [1, -1], [0, -2], [-1, -1], [-2, 0], [-1, 1]]
 const SHIFT_MS = 30 * 60 * 1000
@@ -36,23 +41,36 @@ export const useStageFit = () => {
     // a WebView mid-layout can report a zero size; wait for the next resize
     if (!vw || !vh) return
     const portrait = vh > vw * 1.15
-    const [dx, dy] = SHIFTS[shiftIdx % SHIFTS.length]
+    // no drift while aligning: the boundary must hold still
+    const [dx, dy] = align.editing ? [0, 0] : SHIFTS[shiftIdx % SHIFTS.length]
+    // the alignment, held to this screen: values saved on a larger screen (or a sharper one)
+    // can never push the console off this one. The saved values themselves are kept.
+    const a = alignCss()
+    const l = Math.min(vw / 4, Math.max(0, a.l))
+    const r = Math.min(vw / 4, Math.max(0, a.r))
+    const t = Math.min(vh / 4, Math.max(0, a.t))
+    const b = Math.min(vh / 4, Math.max(0, a.b))
+    const ox = Math.max(-vw / 4, Math.min(vw / 4, a.x))
+    const oy = Math.max(-vh / 4, Math.min(vh / 4, a.y))
+    const aw = vw - l - r
+    const ah = vh - t - b
+    stage.area = { x: l, y: t, w: aw, h: ah }
     if (portrait) {
       stage.w = BASE_W
       stage.wing = 0
-      const s = Math.min(vh / BASE_W, vw / STAGE_H)
+      const s = Math.min(ah / BASE_W, aw / STAGE_H)
       stage.scale = s
-      const x = (vw + STAGE_H * s) / 2 + dx
-      const y = (vh - BASE_W * s) / 2 + dy
+      const x = l + (aw + STAGE_H * s) / 2 + ox + dx
+      const y = t + (ah - BASE_W * s) / 2 + oy + dy
       style.value = { width: `${BASE_W}px`, transform: `translate(${x}px, ${y}px) rotate(90deg) scale(${s})` }
     } else {
-      const w = stageWidthFor(vw, vh)
+      const w = stageWidthFor(aw, ah)
       stage.w = w
       stage.wing = w - BASE_W
-      const s = Math.min(vw / w, vh / STAGE_H)
+      const s = Math.min(aw / w, ah / STAGE_H)
       stage.scale = s
-      const x = (vw - w * s) / 2 + dx
-      const y = (vh - STAGE_H * s) / 2 + dy
+      const x = l + (aw - w * s) / 2 + ox + dx
+      const y = t + (ah - STAGE_H * s) / 2 + oy + dy
       style.value = { width: `${w}px`, transform: s === 1 && !x && !y ? 'none' : `translate(${x}px, ${y}px) scale(${s})` }
     }
   }
@@ -60,6 +78,9 @@ export const useStageFit = () => {
   const onResize = () => {
     if (!raf) raf = window.requestAnimationFrame(fit)
   }
+
+  // alignment edits refit at once
+  watch(() => [align.insets.t, align.insets.r, align.insets.b, align.insets.l, align.offset.x, align.offset.y, align.editing], onResize)
 
   onMounted(() => {
     fit()

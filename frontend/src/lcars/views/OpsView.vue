@@ -5,13 +5,14 @@
       <LBtn
         v-for="(s, i) in SUBS"
         :key="s.key"
-        class="sub-b"
-        :style="{ top: `${i * 33.5}px` }"
+        class="sub-b s3"
+        :class="{ strobe: strobing === s.key }"
+        :style="{ top: `${i * SUB_PITCH}px`, height: `${SUB_PITCH - 3}px` }"
         :label="t(`x.o_${s.key}`)"
         :code="s.code"
         :tone="s.tone"
         :active="panel === s.key"
-        @press="panel = s.key"
+        @press="openPanel(s.key)"
       />
     </div>
 
@@ -77,7 +78,7 @@
 
       <!-- ===== software revisions ===== -->
       <template v-else-if="panel === 'soft'">
-        <div class="ph"><span class="lbl">{{ t('x.o_soft') }}</span></div>
+        <div class="ph"><span class="lbl">{{ t('x.o_soft') }}</span><span class="ver"><span class="k">{{ t('x.build') }}</span> <span class="num c-o5">{{ version }}</span></span></div>
         <div class="tbl lscroll">
           <div v-for="m in visibleModules" :key="m.name + m.sn" class="tr">
             <span class="td1 ell">{{ m.product_name || m.name }}</span>
@@ -86,6 +87,22 @@
           </div>
           <div v-if="!visibleModules.length" class="msg">{{ t('x.no_data') }}</div>
         </div>
+        <!-- console updates: the web build, where the Android shell fetches it, and the app -->
+        <div class="kv ku0">
+          <span class="k">{{ t('x.k_upd_build') }}</span>
+          <span class="v num upd-b">{{ update.build }}</span>
+          <span v-if="update.pending" class="cap c-o4 upd-p">{{ t('x.k_upd_pending') }}</span>
+        </div>
+        <template v-if="hasUpdater">
+          <div class="kv ku1">
+            <span class="k">{{ t('x.k_upd_src') }}</span>
+            <input v-model="originDraft" class="inp num upd-i" spellcheck="false" autocomplete="off" maxlength="80" placeholder="http://192.168.1.10:8889" />
+            <LBtn class="upd-set" :label="t('x.k_upd_set')" tone="g2" shape="pr" @press="saveOrigin" />
+          </div>
+          <div class="upd-s cap ell">{{ nativeLine }}</div>
+        </template>
+        <LBtn v-if="bridge" class="sb1" :label="t('x.check_update')" tone="g3" shape="pl" @press="checkUpdate" />
+        <LBtn v-if="hasUpdater" class="sb2" :label="t('x.k_upd_check')" tone="c2" shape="pr" dot :disabled="!update.native?.origin" @press="checkNow" />
       </template>
 
       <!-- ===== diagnostic: calibration ===== -->
@@ -102,6 +119,7 @@
           <LToggle v-for="(n, i) in NODES" :key="n.key" class="node" :style="{ top: `${i * 38}px` }" :on="cal[n.key]" :label="t(n.name)" @toggle="cal[n.key] = $event" />
         </div>
         <div class="cal-state">{{ calState }}</div>
+        <LBtn v-if="device" class="dx1" :label="t('x.export')" tone="g3" shape="pl" @press="exportInfo" />
         <LBtn class="pa1" :label="t('x.cal_go')" tone="o3" shape="pr" dot :disabled="!calMask || !connected || active" @press="calibrate" />
       </template>
 
@@ -112,58 +130,69 @@
         <div class="note">{{ t('auto_recovery_desc') }}</div>
       </template>
 
-      <!-- ===== standby, camera and console updates ===== -->
-      <template v-else-if="panel === 'kiosk'">
-        <div class="ph"><span class="lbl">{{ t('x.o_kiosk') }}</span></div>
-        <LToggle class="kt kt0 half" :on="cam.enabled" :label="t('x.k_cam')" :sub="t('x.k_cam_d')" @toggle="setCamEnabled" />
-        <!-- snapshot mode: how often a picture is fetched (the camera is let go in between) -->
-        <div class="snap">
-          <span class="k">{{ t('x.k_snap') }}</span>
-          <LSlider class="snap-s" :value="cam.snapS" :target="cam.snapS" :min="5" :max="60" :step="5" :n="11" :w="120" :h="22" color="var(--c3)" unit="s" :aria="t('x.k_snap')" @commit="setSnapInterval" />
-          <span class="num snap-v">{{ cam.snapS }}s</span>
-        </div>
-        <LToggle class="kt kt1" :on="standby.enabled" :label="t('x.k_standby')" :sub="t('x.k_standby_d')" @toggle="setStandbyEnabled" />
-        <LToggle v-if="canSleep" class="kt kt2" :on="standby.sleepIdle" :label="t('x.k_sleep')" :sub="t('x.k_sleep_d')" :disabled="!standby.enabled" @toggle="setSleepIdle" />
-        <div class="kv ku0">
-          <span class="k">{{ t('x.k_upd_build') }}</span>
-          <span class="v num upd-b">{{ update.build }}</span>
-          <span v-if="update.pending" class="cap c-o4 upd-p">{{ t('x.k_upd_pending') }}</span>
-        </div>
-        <template v-if="hasUpdater">
-          <div class="kv ku1">
-            <span class="k">{{ t('x.k_upd_src') }}</span>
-            <input v-model="originDraft" class="inp num upd-i" spellcheck="false" autocomplete="off" maxlength="80" placeholder="http://192.168.1.10:8889" />
-            <LBtn class="upd-set" :label="t('x.k_upd_set')" tone="g2" shape="pr" @press="saveOrigin" />
-          </div>
-          <div class="upd-s cap ell">{{ nativeLine }}</div>
-          <LBtn class="pa1" :label="t('x.k_upd_check')" tone="c2" shape="pr" dot :disabled="!update.native?.origin" @press="checkNow" />
-        </template>
-      </template>
-
-      <!-- ===== interface ===== -->
+      <!-- ===== interface: display, standby, modes ===== -->
       <template v-else>
-        <div class="ph"><span class="lbl">{{ t('x.o_iface') }}</span><span class="ver"><span class="k">{{ t('x.build') }}</span> <span class="num c-o5">{{ version }}</span></span></div>
-        <div class="langs">
-          <span class="k">{{ t('x.language') }}</span>
-          <LBtn v-for="(l, i) in LANGS" :key="l.v" class="lang" :style="{ left: `${86 + i * 84}px` }" :label="l.label || t('x.lang_auto')" tone="g2" shape="pp" :active="langPref === l.v" @press="setLang(l.v)" />
-        </div>
-        <LToggle class="if0" compact :on="soundOn" :label="t('x.sound')" @toggle="toggleSound" />
-        <!-- night mode and its window: each hour button steps one hour -->
-        <LToggle class="ifn" compact :on="night.on" :label="t('x.night')" @toggle="setNight({ on: $event })" />
-        <LBtn class="nh nh1" :label="`${two(night.from)}:00`" tone="g2" shape="pl" :aria-label="t('x.night_from')" @press="setNight({ from: (night.from + 1) % 24 })" />
-        <LBtn class="nh nh2" :label="`${two(night.to)}:00`" tone="g2" shape="pr" :aria-label="t('x.night_to')" @press="setNight({ to: (night.to + 1) % 24 })" />
-        <template v-if="bridge">
-          <LToggle class="if1" compact :on="native.hide" :label="t('x.hide_bar')" @toggle="setNative('hide', $event)" />
-          <LToggle class="if2" compact :on="native.land" :label="t('x.land_lock')" @toggle="setNative('land', $event)" />
-          <LToggle class="if3" compact :on="native.awake" :label="t('x.awake')" @toggle="setNative('awake', $event)" />
-          <LToggle v-if="kiosk.canDim" class="if4" compact :on="dimPref.on" :label="t('x.k_dim')" @toggle="setDimPref" />
+        <div class="ph"><span class="lbl">{{ t('x.o_iface') }}</span></div>
+        <LBtn
+          v-for="(g, i) in IFACE"
+          :key="g"
+          class="seg s3"
+          :class="{ strobe: strobing === `if-${g}` }"
+          :style="{ left: `${100 + i * 105}px` }"
+          :label="t(`x.if_${g}`)"
+          tone="g2"
+          :shape="i === 0 ? 'pl' : i === IFACE.length - 1 ? 'pr' : ''"
+          :active="iface === g"
+          @press="openIface(g)"
+        />
+
+        <!-- display: language, sound, night, the Android shell, the page's own health -->
+        <template v-if="iface === 'display'">
+          <div class="langs">
+            <span class="k">{{ t('x.language') }}</span>
+            <LBtn v-for="(l, i) in LANGS" :key="l.v" class="lang" :style="{ left: `${86 + i * 84}px` }" :label="l.label || t('x.lang_auto')" tone="g2" shape="pp" :active="langPref === l.v" @press="setLang(l.v)" />
+          </div>
+          <LToggle class="if0" compact :on="soundOn" :label="t('x.sound')" @toggle="toggleSound" />
+          <!-- night mode and its window: each hour button steps one hour -->
+          <LToggle class="ifn" compact :on="night.on" :label="t('x.night')" @toggle="setNight({ on: $event })" />
+          <LBtn class="nh nh1" :label="`${two(night.from)}:00`" tone="g2" shape="pl" :aria-label="t('x.night_from')" @press="setNight({ from: (night.from + 1) % 24 })" />
+          <LBtn class="nh nh2" :label="`${two(night.to)}:00`" tone="g2" shape="pr" :aria-label="t('x.night_to')" @press="setNight({ to: (night.to + 1) % 24 })" />
+          <template v-if="bridge">
+            <LToggle class="if1" compact :on="native.hide" :label="t('x.hide_bar')" @toggle="setNative('hide', $event)" />
+            <LToggle class="if2" compact :on="native.land" :label="t('x.land_lock')" @toggle="setNative('land', $event)" />
+            <LToggle class="if3" compact :on="native.awake" :label="t('x.awake')" @toggle="setNative('awake', $event)" />
+            <LToggle v-if="kiosk.canDim" class="if4" compact :on="dimPref.on" :label="t('x.k_dim')" @toggle="setDimPref" />
+          </template>
+          <div class="kstat">
+            <div><span class="k">{{ t('x.k_fx') }}</span> <span :class="kiosk.tier === 'high' ? 'c-c4' : 'c-y'">{{ t(kiosk.tier === 'high' ? 'x.k_fx_full' : 'x.k_fx_low') }}</span><template v-if="kiosk.battery"> <span class="k">{{ t('x.k_batt') }}</span> <span class="num" :class="kiosk.hot ? 'c-y' : 'c-o5'">{{ kiosk.battery.temp.toFixed(1) }}°</span> <span class="num c-g5">{{ kiosk.battery.level }}%</span></template></div>
+            <div class="ell"><span class="k">{{ t('x.k_err') }}</span> <span class="num" :class="kiosk.errors.length ? 'c-y' : 'c-g5'">{{ kiosk.errors.length }}</span> <span v-if="kiosk.errors[0]" class="kerr">{{ kiosk.errors[0].msg }}</span></div>
+          </div>
         </template>
-        <div class="kstat">
-          <div><span class="k">{{ t('x.k_fx') }}</span> <span :class="kiosk.tier === 'high' ? 'c-c4' : 'c-y'">{{ t(kiosk.tier === 'high' ? 'x.k_fx_full' : 'x.k_fx_low') }}</span><template v-if="kiosk.battery"> <span class="k">{{ t('x.k_batt') }}</span> <span class="num" :class="kiosk.hot ? 'c-y' : 'c-o5'">{{ kiosk.battery.temp.toFixed(1) }}°</span> <span class="num c-g5">{{ kiosk.battery.level }}%</span></template></div>
-          <div class="ell"><span class="k">{{ t('x.k_err') }}</span> <span class="num" :class="kiosk.errors.length ? 'c-y' : 'c-g5'">{{ kiosk.errors.length }}</span> <span v-if="kiosk.errors[0]" class="kerr">{{ kiosk.errors[0].msg }}</span></div>
-        </div>
-        <LBtn v-if="device" class="ib1" :label="t('x.export')" tone="g3" shape="pl" @press="exportInfo" />
-        <LBtn v-if="bridge" class="ib2" :label="t('x.check_update')" tone="c2" shape="pr" @press="checkUpdate" />
+
+        <!-- standby: camera use, the standby screen, sleeping when idle -->
+        <template v-else-if="iface === 'standby'">
+          <LToggle class="kt kt0 half" :on="cam.enabled" :label="t('x.k_cam')" :sub="t('x.k_cam_d')" @toggle="setCamEnabled" />
+          <!-- snapshot mode: how often a picture is fetched (the camera is let go in between) -->
+          <div class="snap">
+            <span class="k">{{ t('x.k_snap') }}</span>
+            <LSlider class="snap-s" :value="cam.snapS" :target="cam.snapS" :min="5" :max="60" :step="5" :n="11" :w="120" :h="22" color="var(--c3)" unit="s" :aria="t('x.k_snap')" @commit="setSnapInterval" />
+            <span class="num snap-v">{{ cam.snapS }}s</span>
+          </div>
+          <LToggle class="kt kt1" :on="standby.enabled" :label="t('x.k_standby')" :sub="t('x.k_standby_d')" @toggle="setStandbyEnabled" />
+          <LToggle v-if="canSleep" class="kt kt2" :on="standby.sleepIdle" :label="t('x.k_sleep')" :sub="t('x.k_sleep_d')" :disabled="!standby.enabled" @toggle="setSleepIdle" />
+        </template>
+
+        <!-- modes: simulation and display alignment -->
+        <template v-else>
+          <LToggle class="kt kt0" :on="demo.on" :label="t('x.sim_mode')" :sub="t('x.sim_mode_d')" @toggle="setSim" />
+          <div class="kv mo1">
+            <span class="k">{{ t('x.al_title') }}</span>
+            <span class="v num al-sum" :class="alignIsSet() ? 'c-o5' : 'c-g5'">{{ alignSummary() }}</span>
+          </div>
+          <div class="mo-note cap">{{ t('x.al_note') }}</div>
+          <LBtn class="mo-b1" :label="t('x.al_go')" tone="o3" shape="pl" dot @press="goAlign" />
+          <LBtn class="mo-b2" :label="t('x.al_reset')" tone="g2" shape="pr" sound="cancel" :disabled="!alignIsSet()" @press="resetAlignAsk" />
+        </template>
       </template>
     </div>
   </div>
@@ -183,7 +212,9 @@ import { MAC_RE, brokerUrl, chamber as ch, chamberLive, saveChamberConfig, type 
 import { usePlant } from '../systems'
 import { setSound, sound } from '../sfx'
 import { dimPref, kiosk, setDimPref } from '../kiosk'
-import { confirmPanel, notice, run } from '../ui'
+import { confirmPanel, notice, run, useStrobe } from '../ui'
+import { demo, startDemo, stopDemo } from '../demo'
+import { alignIsSet, alignSummary, resetAlign, startAlign } from '../align'
 import { cam, setCamEnabled, setSnapInterval } from '../camera'
 import { setSleepIdle, setStandbyEnabled, standby } from '../standby'
 import { night, setNight } from '../night'
@@ -199,6 +230,7 @@ const { device, modules, connected, active } = usePlant()
 const { linkVersion } = usePrinterStore()
 const version = import.meta.env.APP_VERSION
 
+// seven sub systems over the 268 px column: taller buttons than the eight there were
 const SUBS = [
   { key: 'vessel', code: '51', tone: 'c2' },
   { key: 'comms', code: '52', tone: 'g3' },
@@ -207,13 +239,20 @@ const SUBS = [
   { key: 'diag', code: '55', tone: 'g3' },
   { key: 'proto', code: '56', tone: 'g2' },
   { key: 'iface', code: '57', tone: 'g3' },
-  { key: 'kiosk', code: '58', tone: 'g2' },
 ]
+const SUB_PITCH = 268 / SUBS.length
+const { strobing, fire } = useStrobe()
 const PANEL_KEY = 'lcars_ops_panel'
 const readPanel = () => {
   try { return sessionStorage.getItem(PANEL_KEY) || 'vessel' } catch { return 'vessel' }
 }
-const panel = ref(SUBS.some(s => s.key === readPanel()) ? readPanel() : 'vessel')
+// the old standby item now lives in the interface item
+const panel = ref(readPanel() === 'kiosk' ? 'iface' : SUBS.some(s => s.key === readPanel()) ? readPanel() : 'vessel')
+const openPanel = (k: string) => {
+  if (panel.value === k) return
+  panel.value = k
+  fire(k)
+}
 watch(panel, (v) => {
   try { sessionStorage.setItem(PANEL_KEY, v) } catch { /* private mode */ }
 })
@@ -327,6 +366,54 @@ const setRecovery = async (on: boolean) => {
     p.home_flag = on ? p.home_flag | (1 << HomeFlagBit.auto_recovery) : p.home_flag & ~(1 << HomeFlagBit.auto_recovery)
     refreshPrinter()
   }
+}
+
+/* ---- interface: three pages ---- */
+type IfacePage = 'display' | 'standby' | 'modes'
+const IFACE: IfacePage[] = ['display', 'standby', 'modes']
+const IFACE_KEY = 'lcars_ops_iface'
+const readIface = (): IfacePage => {
+  try {
+    const v = sessionStorage.getItem(IFACE_KEY) as IfacePage | null
+    return v && IFACE.includes(v) ? v : 'display'
+  } catch { return 'display' }
+}
+const iface = ref<IfacePage>(readIface())
+const openIface = (g: IfacePage) => {
+  if (iface.value === g) return
+  iface.value = g
+  fire(`if-${g}`)
+  try { sessionStorage.setItem(IFACE_KEY, g) } catch { /* private mode */ }
+}
+
+/* simulation: confirmed, since it takes the real printer off the console */
+const setSim = async (on: boolean) => {
+  if (!on) {
+    stopDemo()
+    notice(t('x.sim_left'), 'c')
+    return
+  }
+  const ok = await confirmPanel({
+    title: t('x.sim_mode'),
+    body: active.value ? t('x.sim_ask_busy') : t('x.sim_ask'),
+    ok: t('x.sim_go'),
+    cancel: t('x.cancel'),
+    tone: active.value ? 'r' : 'c',
+  })
+  if (!ok) return
+  await startDemo()
+  notice(t('x.sim_on'), 'c')
+  router.replace('/home')
+}
+
+/* alignment: done over the home page */
+const goAlign = () => {
+  startAlign()
+  router.replace('/home')
+}
+const resetAlignAsk = async () => {
+  const ok = await confirmPanel({ title: t('x.al_title'), body: t('x.al_reset_ask'), ok: t('x.al_reset'), cancel: t('x.cancel'), tone: 'o' })
+  if (ok) resetAlign()
 }
 
 /* ---- interface ---- */
@@ -453,7 +540,16 @@ onBeforeUnmount(() => {
 .ops { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; }
 .lbl { font-size: 15px; line-height: 17px; font-weight: 600; color: var(--ft); letter-spacing: .03em; }
 .sub { position: absolute; left: 0; top: 0; width: 108px; height: 268px; }
-.sub-b { position: absolute; left: 0; width: 108px; height: 31px; font-size: 14px; }
+.sub-b { position: absolute; left: 0; width: 108px; font-size: 14px; }
+/* a pane steps in like a page, in the quick chain: its blocks one after another */
+.pane > * { animation: stgStamp .27s step-end backwards; }
+.pane > :nth-child(2) { animation-delay: .04s; }
+.pane > :nth-child(3) { animation-delay: .08s; }
+.pane > :nth-child(4) { animation-delay: .12s; }
+.pane > :nth-child(5) { animation-delay: .16s; }
+.pane > :nth-child(6) { animation-delay: .2s; }
+.pane > :nth-child(7) { animation-delay: .24s; }
+.pane > :nth-child(n+8) { animation-delay: .28s; }
 .pane { position: absolute; left: 118px; top: 0; width: calc(414px + var(--xw, 0px)); height: 268px; }
 .ph { height: 24px; }
 .msg { padding: 10px 4px; color: var(--g5); font-size: 14px; text-transform: none; }
@@ -485,7 +581,7 @@ onBeforeUnmount(() => {
 .now { position: absolute; left: 324px; font-size: 13px !important; color: var(--g5) !important; }
 .mac-bad { position: absolute; left: 0; top: 190px; }
 
-.tbl { position: absolute; left: 0; top: 26px; width: calc(414px + var(--xw, 0px)); height: 240px; }
+.tbl { position: absolute; left: 0; top: 26px; width: calc(414px + var(--xw, 0px)); height: 112px; }
 .tr { position: relative; height: 32px; border-bottom: 1px solid var(--g1); font-size: 14px; line-height: 32px; }
 .td1 { position: absolute; left: 0; width: 150px; color: var(--g6); }
 .td2 { position: absolute; left: 156px; font-size: 16px; }
@@ -500,37 +596,44 @@ onBeforeUnmount(() => {
 .row1 { position: absolute; left: 0; top: 28px; width: calc(414px + var(--xw, 0px)); }
 .note { position: absolute; left: 0; top: 72px; width: calc(400px + var(--xw, 0px)); text-transform: none; line-height: 17px; font-size: 13px; color: var(--g5); }
 
-.langs { position: absolute; left: 0; top: 26px; width: calc(414px + var(--xw, 0px)); height: 30px; }
+.langs { position: absolute; left: 0; top: 32px; width: calc(414px + var(--xw, 0px)); height: 30px; }
 .langs .k { position: absolute; left: 0; top: 8px; }
 .lang { position: absolute; top: 0; width: 80px; height: 30px; font-size: 14px; }
-.if0 { position: absolute; left: 0; top: 64px; width: calc(205px + var(--xw, 0px) / 2); }
-.ifn { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 64px; width: calc(105px + var(--xw, 0px) / 4); }
-.nh { position: absolute; top: 64px; width: calc(48px + var(--xw, 0px) / 8); height: 34px; font-size: 13px; }
+.if0 { position: absolute; left: 0; top: 70px; width: calc(205px + var(--xw, 0px) / 2); }
+.ifn { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 70px; width: calc(105px + var(--xw, 0px) / 4); }
+.nh { position: absolute; top: 70px; width: calc(48px + var(--xw, 0px) / 8); height: 34px; font-size: 13px; }
 .nh1 { left: calc(318px + var(--xw, 0px) * .75); }
 .nh2 { left: calc(366px + var(--xw, 0px) * .875); }
-.if1 { position: absolute; left: 0; top: 102px; width: calc(205px + var(--xw, 0px) / 2); }
-.if2 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 102px; width: calc(205px + var(--xw, 0px) / 2); }
-.if3 { position: absolute; left: 0; top: 140px; width: calc(205px + var(--xw, 0px) / 2); }
-.if4 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 140px; width: calc(205px + var(--xw, 0px) / 2); }
-.kstat { position: absolute; left: 0; top: 180px; width: calc(414px + var(--xw, 0px)); font-size: 13px; line-height: 18px; color: var(--g6); }
+.if1 { position: absolute; left: 0; top: 108px; width: calc(205px + var(--xw, 0px) / 2); }
+.if2 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 108px; width: calc(205px + var(--xw, 0px) / 2); }
+.if3 { position: absolute; left: 0; top: 146px; width: calc(205px + var(--xw, 0px) / 2); }
+.if4 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 146px; width: calc(205px + var(--xw, 0px) / 2); }
+.kstat { position: absolute; left: 0; top: 190px; width: calc(414px + var(--xw, 0px)); font-size: 13px; line-height: 18px; color: var(--g6); }
 .kerr { text-transform: none; color: var(--g5); font-size: 12px; }
 .ver { position: absolute; right: 0; top: 0; font-size: 13px; }
 .kt { position: absolute; left: 0; width: calc(414px + var(--xw, 0px)); }
-.kt0 { top: 26px; }
+.kt0 { top: 32px; }
 .kt0.half { width: calc(236px + var(--xw, 0px) / 2); }
-.snap { position: absolute; left: calc(244px + var(--xw, 0px) / 2); top: 26px; width: 170px; height: 34px; }
+.snap { position: absolute; left: calc(244px + var(--xw, 0px) / 2); top: 32px; width: 170px; height: 34px; }
 .snap .k { position: absolute; left: 0; top: 0; font-size: 11px; }
 .snap-s { position: absolute; left: 0; top: 12px; }
 .snap-v { position: absolute; left: 126px; top: 14px; font-size: 14px; color: var(--c5); }
-.kt1 { top: 64px; }
-.kt2 { top: 102px; }
-.ku0 { position: absolute; left: 0; top: 140px; width: calc(414px + var(--xw, 0px)); }
-.ku1 { position: absolute; left: 0; top: 172px; width: calc(414px + var(--xw, 0px)); }
+.kt1 { top: 72px; }
+.kt2 { top: 112px; }
+.ku0 { position: absolute; left: 0; top: 142px; width: calc(414px + var(--xw, 0px)); }
+.ku1 { position: absolute; left: 0; top: 174px; width: calc(414px + var(--xw, 0px)); }
 .upd-b { font-size: 13px !important; color: var(--o5) !important; text-transform: none; }
 .upd-p { margin-left: 10px; }
 .upd-i { width: calc(196px + var(--xw, 0px)); font-size: 14px; text-transform: none; }
 .upd-set { position: absolute; right: 0; top: 3px; width: 96px; height: 26px; font-size: 13px; }
-.upd-s { position: absolute; left: 0; top: 206px; width: calc(414px + var(--xw, 0px)); color: var(--g5); text-transform: none; }
-.ib1 { position: absolute; left: 0; top: 222px; width: 200px; height: 42px; }
-.ib2 { position: absolute; left: 206px; top: 222px; width: 208px; height: 42px; }
+.upd-s { position: absolute; left: 0; top: 208px; width: calc(414px + var(--xw, 0px)); color: var(--g5); text-transform: none; }
+.sb1 { position: absolute; left: 0; top: 228px; width: 200px; height: 38px; }
+.sb2 { position: absolute; left: 206px; top: 228px; width: 208px; height: 38px; }
+.dx1 { position: absolute; left: 0; top: 222px; width: 188px; height: 42px; }
+.seg { position: absolute; top: 0; width: 103px; height: 24px; font-size: 13px; }
+.mo1 { position: absolute; left: 0; top: 76px; width: calc(414px + var(--xw, 0px)); }
+.al-sum { font-size: 14px !important; }
+.mo-note { position: absolute; left: 0; top: 114px; width: calc(414px + var(--xw, 0px)); text-transform: none; line-height: 15px; }
+.mo-b1 { position: absolute; left: 0; top: 222px; width: 250px; height: 42px; font-size: 16px; }
+.mo-b2 { position: absolute; left: 254px; top: 222px; width: calc(160px + var(--xw, 0px)); height: 42px; }
 </style>

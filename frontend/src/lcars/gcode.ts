@@ -63,6 +63,15 @@ export const parsePlateObjects = (json: string): PlateObject[] => {
 
 let index: GcodeIndex | null = null
 let loadSeq = 0
+/* the simulated printer's plate (demo mode has no file to read it from) */
+let demoPlate: PlateObject[] | null = null
+export const setDemoPlate = (objs: PlateObject[] | null) => {
+  // a load still running for the other printer must not land after the switch
+  loadSeq++
+  gcode.key = ''
+  demoPlate = objs
+  if (!objs) gcode.objects = []
+}
 
 export const gcodeIndex = () => index
 
@@ -180,6 +189,7 @@ export const ensureGcode = async (key: string, subtask?: string, gcodeFile?: str
   const mine = ++loadSeq
   if (!lanTarget()) {
     gcode.status = 'cloud'
+    if (demoPlate) gcode.objects = demoPlate.map(o => ({ ...o, box: [...o.box] as PlateObject['box'] }))
     return
   }
   gcode.status = 'loading'
