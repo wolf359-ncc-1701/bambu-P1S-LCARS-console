@@ -1,4 +1,4 @@
-export { PrinterClient, PrinterEvent, type PrinterClientConnectOptions } from './PrinterClient'
+export { DEMO_USER, PrinterClient, PrinterEvent, type DemoLink, type PrinterClientConnectOptions } from './PrinterClient'
 export { FTPSClient, FtpError, type FTPFileInfo } from './FTPSClient'
 export {
   CloudClient,

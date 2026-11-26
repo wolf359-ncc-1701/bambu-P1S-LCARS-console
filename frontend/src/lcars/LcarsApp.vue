@@ -6,7 +6,8 @@
     :data-mood="mood"
     :data-alert="alertState"
     :data-tier="kiosk.tier"
-    @pointerdown.capture="touched"
+    :data-sim="demo.on ? '' : undefined"
+    @pointerdown.capture="down"
     @keydown.capture="touched"
   >
     <!-- ===== frame: two elbowed frames, cut bars, notches. Static, drawn once. ===== -->
@@ -101,10 +102,12 @@
     </main>
 
     <LRedAlert v-if="redAlert" />
+    <LDemo v-if="demo.on" />
     <LKeypad v-if="ui.keypad.show" />
     <LConfirm v-if="ui.confirm.show" />
     <LStandby v-if="standby.on" @wake="touched()" />
     <LBoot v-if="booting" @done="booting = false" />
+    <LAlign v-if="align.editing" />
   </div>
 </template>
 
@@ -115,7 +118,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { autoLink, client, connectPrinter, getPrinterConnectionMode, lanTarget } from '../printer'
 import { bindPrinterClient, unbindPrinterClient } from '../stores/printer'
 import { getCurrentDevice } from '../utils/device'
-import { flick, pulse } from './ambient'
+import { flick, hitFrom, pulse } from './ambient'
 import { elbow } from './geom'
 import { loadHms } from './hms'
 import { stage, useStageFit } from './stage'
@@ -138,6 +141,10 @@ import LConfirm from './components/LConfirm.vue'
 import LRedAlert from './components/LRedAlert.vue'
 import LBoot from './components/LBoot.vue'
 import LStandby from './components/LStandby.vue'
+import LDemo from './components/LDemo.vue'
+import LAlign from './components/LAlign.vue'
+import { demo } from './demo'
+import { align } from './align'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -209,8 +216,11 @@ const linkLine = computed(() => {
   if (!online) void clock.value
   void device.value
   const dev = getCurrentDevice()
+  // the simulated printer needs no stored device
+  if (!dev && online && getPrinterConnectionMode() === 'demo') return `${t('x.sim_title')} • ${t('x.link_demo')}`
   if (!dev) return t('x.no_link')
   if (!online) return `${dev.name} • ${linkTrouble()}`
+  if (getPrinterConnectionMode() === 'demo') return `${t('x.sim_title')} • ${t('x.link_demo')}`
   const mode = t(getPrinterConnectionMode() === 'cloud' ? 'x.link_cloud' : 'x.link_local') + (autoLink() ? ` (${t('x.link_auto')})` : '')
   return `${dev.name} • ${mode} • ${client.getWifiSignalPercentage()}%`
 })
@@ -337,6 +347,11 @@ const touched = (e?: Event) => {
   if (autoActive.value && target?.closest?.('button,[role=switch],[role=slider],[role=button]')) quietHandback = true
   autoActive.value = false
 }
+// every press flashes the control under the finger at once, then counts as a touch
+const down = (e: PointerEvent) => {
+  hitFrom(e.target)
+  touched(e)
+}
 const toggleAuto = () => {
   autoOn.value = !autoOn.value
   try { localStorage.setItem(AUTO_KEY, autoOn.value ? '1' : '0') } catch { /* private mode */ }
@@ -348,6 +363,12 @@ const REFRESH_AFTER_MS = 12 * 3600 * 1000
 const autoTick = () => {
   now.value = Date.now()
   if (document.hidden) return
+  // aligning the display: nothing may take the screen away, and it counts as use
+  // (its controls are outside the stage, so their touches do not reach touched())
+  if (align.editing) {
+    lastInput = Date.now()
+    return
+  }
   const idle = Date.now() - lastInput
   // the standby screen: a few minutes untouched, nothing open, no fresh alert, and not in
   // the first minutes after a job ended (the console stays up to show how it ended)
@@ -358,7 +379,7 @@ const autoTick = () => {
     enterStandby()
   }
   // never mid-job: a reload drops the job's G-code and relinks to the printer
-  if (Date.now() - BOOT_AT > REFRESH_AFTER_MS && idle > 600000 && !active.value && route.path === '/home' && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red') {
+  if (Date.now() - BOOT_AT > REFRESH_AFTER_MS && idle > 600000 && !active.value && !demo.on && route.path === '/home' && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red') {
     window.location.reload()
     return
   }
@@ -481,7 +502,7 @@ onMounted(() => {
   quiet.active = () => isNight()
   // a hand waved over the proximity sensor counts as a touch (Android shell)
   ;(window as any).__P1ScreenOnWave = () => touched()
-  initUpdates(() => Date.now() - lastInput > 600000 && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red')
+  initUpdates(() => Date.now() - lastInput > 600000 && !demo.on && !align.editing && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red')
   tickClock()
   clockTimer = window.setInterval(() => { if (!document.hidden) tickClock() }, 1000)
   autoTimer = window.setInterval(autoTick, 5000)

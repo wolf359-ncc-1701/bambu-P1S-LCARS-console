@@ -33,6 +33,7 @@ export const createApiUrl = (host: string) => {
 
 export const getPrinterConnectionMode = () => {
   if (!client.mqttClient?.connected || !client.connectOptions) return ''
+  if (client.isDemo) return 'demo'
   return client.connectOptions.username === 'bblp' ? 'local' : 'cloud'
 }
 
@@ -42,6 +43,8 @@ const canCloud = (device: DeviceRecord) => device.from !== 'local' && !!getCloud
    not to be used: a cloud link without "LAN media" turned on, or no address known. The address
    falls back to the one the printer itself reports, so a cloud device works without typing it. */
 export const lanTarget = (): { ip: string, code: string } | null => {
+  // the simulated printer has no LAN: camera, files and G-code stay off
+  if (client.isDemo) return null
   const dev = getCurrentDevice()
   if (!dev?.code) return null
   const lanLink = dev.from === 'local' || dev.connect !== 'cloud' || dev.lanMedia
@@ -115,6 +118,7 @@ const armFailover = () => {
   if (auto.failTimer) clearTimeout(auto.failTimer)
   auto.failTimer = setTimeout(() => {
     auto.failTimer = 0
+    if (client.isDemo) return
     if (auto.device && auto.on === 'local' && !client.mqttClient?.connected) autoCloud()
   }, FAILOVER_MS)
 }
@@ -123,7 +127,7 @@ const scheduleProbe = () => {
   auto.probeTimer = setTimeout(async () => {
     auto.probeTimer = 0
     const d = auto.device
-    if (!d || auto.on !== 'cloud') return
+    if (!d || auto.on !== 'cloud' || client.isDemo) return
     // a probe from an earlier round still out: try again later rather than stop probing
     if (auto.probing) return scheduleProbe()
     auto.probing = true
@@ -135,6 +139,11 @@ const scheduleProbe = () => {
 }
 // a LAN link that drops after it was up gets the same grace before moving to the cloud
 client.on(PrinterEvent.MQTT_STATE_CHANGE, () => {
+  // the simulated printer: the auto link must not run (it is stopped on entry; this is a second guard)
+  if (client.isDemo) {
+    stopAuto()
+    return
+  }
   if (!auto.device || auto.on !== 'local') return
   if (client.mqttClient?.connected) {
     if (auto.failTimer) clearTimeout(auto.failTimer)
@@ -145,6 +154,8 @@ client.on(PrinterEvent.MQTT_STATE_CHANGE, () => {
 })
 
 export const connectPrinter = (device: DeviceRecord) => {
+  // while the simulated printer is on, the real one is not linked (simulation mode ends first)
+  if (client.isDemo) return client.mqttClient
   stopAuto()
   if (device.connect === 'auto' && device.from !== 'local' && canCloud(device) && device.ip && device.code) {
     auto.device = device

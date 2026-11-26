@@ -24,6 +24,17 @@ export type PrinterClientConnectOptions = {
   keepState?: boolean
 }
 
+/** The far end of a simulated printer (demo mode): takes the request JSON the client would
+ *  publish, and is given a callback for the report JSON it sends back. */
+export type DemoLink = {
+  send: (payload: string) => void
+  close: () => void
+  onReport?: (payload: string) => void
+}
+
+/** The username of the demo link: no real broker ever sees it. */
+export const DEMO_USER = 'demo'
+
 export class PrinterClient {
   private sequenceId = 0
   private reportTopic = ''
@@ -115,6 +126,49 @@ export class PrinterClient {
       this.stopConnection('connect failed')
       return null
     }
+  }
+
+  /**
+   * Replaces the link with a simulated printer. The real connection is closed first and the
+   * stand-in client has no socket at all: every request goes to `link.send`, every report comes
+   * from `link.onReport`, so nothing can reach a real printer while it is in place. It stays
+   * until disconnect() or connect() replaces it.
+   */
+  connectDemo(serial: string, link: DemoLink) {
+    this.stopConnection('demo')
+    this.connectOptions = { mqttUrl: 'demo:', username: DEMO_USER, password: '', serial }
+    this.reportTopic = `device/${serial}/report`
+    this.requestTopic = `device/${serial}/request`
+    const topic = this.reportTopic
+    const stand = {
+      connected: true,
+      publishAsync: async (_topic: string, payload: string) => {
+        if (!stand.connected) throw new Error('Not connected')
+        link.send(payload)
+      },
+      subscribeAsync: async () => undefined,
+      removeAllListeners: () => stand,
+      on: () => stand,
+      reconnect: () => stand,
+      end: () => {
+        stand.connected = false
+        link.onReport = undefined
+        link.close()
+        return stand
+      },
+    }
+    link.onReport = (payload: string) => {
+      if (this.mqttClient === (stand as unknown as MqttClient)) this.onMessage(topic, new TextEncoder().encode(payload))
+    }
+    this.mqttClient = stand as unknown as MqttClient
+    this.everConnected = true
+    this.emit(PrinterEvent.MQTT_STATE_CHANGE, null)
+    this.updateAllData().catch(() => undefined).then(() => this.emit(PrinterEvent.MQTT_STATE_CHANGE, null))
+  }
+
+  /** Whether the link is the simulated printer. */
+  get isDemo() {
+    return this.connectOptions?.username === DEMO_USER && !!this.mqttClient
   }
 
   /**

@@ -139,3 +139,33 @@ export const vTick: Directive<HTMLElement | SVGElement, unknown> = {
     pulseTimers.get(el)?.forEach(id => window.clearTimeout(id))
   },
 }
+
+/* Press feedback, shown the moment a finger lands (pointerdown), not on release: an Android
+   WebView often never paints :active for a quick tap. A bright block flashes over the control
+   (on its ::before, so it never replaces the control's own entrance or strobe animation), holds
+   long enough to be seen on a 40 ms tap, and steps off. Two identical classes alternate so rapid
+   presses restart it without a forced reflow. Kept under reduced motion: it is feedback, not
+   decoration. */
+export const HIT_SELECTOR = '.lb:not([disabled]), .pill, .tg-cap, [data-hit]'
+const hitTimers = new WeakMap<Element, number>()
+export const hit = (el: Element | null | undefined) => {
+  if (!el) return
+  const next = el.classList.contains('hit-a') ? 'hit-b' : 'hit-a'
+  el.classList.remove('hit-a', 'hit-b')
+  el.classList.add(next)
+  // removed by time, not animationend (which a throttled page may never send)
+  window.clearTimeout(hitTimers.get(el))
+  hitTimers.set(el, window.setTimeout(() => el.classList.remove('hit-a', 'hit-b'), 220))
+}
+/* The shell calls this for every pointerdown: the control under the finger, if any, flashes. */
+export const hitFrom = (target: EventTarget | null) => {
+  const t = target as Element | null
+  if (!t?.closest) return
+  // a toggle flashes its state cap; anything else flashes itself
+  const sw = t.closest('[role=switch]')
+  if (sw) {
+    if (sw.getAttribute('aria-disabled') !== 'true') hit(sw.querySelector('.tg-cap') ?? sw)
+    return
+  }
+  hit(t.closest(HIT_SELECTOR))
+}

@@ -22,7 +22,7 @@
 /* A block button. One language at a time: `label` is the main word, `sub` an optional
    smaller line in the same language. */
 import { ref } from 'vue'
-import { flick } from '../ambient'
+import { hit } from '../ambient'
 import { play, type CueName } from '../sfx'
 
 const props = withDefaults(defineProps<{
@@ -50,12 +50,13 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ (e: 'press'): void }>()
 const el = ref<HTMLElement | null>(null)
-// the flicker runs on the label, so it never replaces an entrance animation on the button
 const txt = ref<HTMLElement | null>(null)
 
-const onClick = () => {
+// a press by finger already flashed on pointerdown (the shell does that for every control);
+// a press by keyboard (a click with no pointer: detail 0) flashes here
+const onClick = (e: MouseEvent) => {
   if (props.disabled) return
-  flick(txt.value, 1)
+  if (e.detail === 0) hit(el.value)
   if (props.sound) play(props.sound)
   emit('press')
 }

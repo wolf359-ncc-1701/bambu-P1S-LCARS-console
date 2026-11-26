@@ -49,6 +49,8 @@ html, body, #app {
 .lcars * { box-sizing: border-box; }
 
 .lcars[data-mood=warm] { --fa: #8a4a3a; --fb: #b8664e; --fc: #4a2a24; --ft: var(--o5); }
+/* simulation: a violet frame nobody can take for the real printer (alerts still recolour it) */
+.lcars[data-sim] { --fa: #4c3f7a; --fb: #8a74d0; --fc: #2c2546; --ft: #C4B2FF; }
 .lcars[data-alert=yellow] { --fa: #8f6a2a; --fb: var(--y4); --fc: #4a3a1c; --ft: var(--y4); }
 .lcars[data-alert=red] { --fa: #9a1e12; --fb: var(--o1); --fc: #4a120c; --ft: #FF3B24; }
 
@@ -77,7 +79,6 @@ html, body, #app {
   white-space: nowrap;
   -webkit-appearance: none;
 }
-.lb:active:not([disabled]) { background: var(--o6) !important; color: #000 !important; }
 .lb[disabled] { opacity: .28; cursor: default; }
 .lb .lb-t { position: absolute; right: 7px; bottom: 4px; }
 .lb .lb-s { position: absolute; left: 7px; top: 4px; font-size: 10px; font-weight: 500; opacity: .75; }
@@ -151,6 +152,12 @@ html, body, #app {
 .stg[data-o="4"] { animation-delay: .86s; }
 .stg[data-o="5"] { animation-delay: 1.16s; }
 .stg[data-o="6"] { animation-delay: 1.76s; }
+/* the quick chain: sub panes and overlays arrive in the same steps, inside a third of a second */
+.stg[data-q="1"] { animation-delay: .04s; }
+.stg[data-q="2"] { animation-delay: .1s; }
+.stg[data-q="3"] { animation-delay: .16s; }
+.stg[data-q="4"] { animation-delay: .22s; }
+.stg[data-q="5"] { animation-delay: .28s; }
 @keyframes stgStamp { 0% { opacity: 0 } 1% { opacity: .55 } 34% { opacity: .15 } 67% { opacity: 1 } 100% { opacity: 1 } }
 @keyframes stgWipeX { 0% { opacity: 1; transform: scaleX(0) } 1% { transform: scaleX(.3) } 25% { transform: scaleX(.6) } 50% { transform: scaleX(.85) } 75% { transform: none } 100% { transform: none } }
 @keyframes stgWipeY { 0% { opacity: 1; transform: scaleY(0) } 1% { transform: scaleY(.3) } 25% { transform: scaleY(.6) } 50% { transform: scaleY(.85) } 75% { transform: none } 100% { transform: none } }
@@ -162,8 +169,10 @@ html, body, #app {
 .vtk { animation: vtk .24s step-end 1; }
 @keyframes vtk { 0% { color: #fff } 34% { opacity: .45 } 67% { color: var(--c5); opacity: 1 } 100% { } }
 
-/* the nav tab being opened strobes until its page has arrived */
+/* the nav tab being opened strobes until its page has arrived; a sub tab (one level down)
+   strobes the same way, shorter */
 .strobe { animation: strobe .28s step-end 4; }
+.strobe.s3 { animation: strobe .2s step-end 3; }
 @keyframes strobe { 0% { opacity: .4 } 50% { opacity: 1 } }
 
 /* a state change sweeping across the frame (condition yellow / red entry) */
@@ -181,3 +190,27 @@ html, body, #app {
 
 /* glyph buttons (− / +): the glyph is the label, centred */
 .lb.ctr .lb-t { left: 0; right: 0; top: 50%; bottom: auto; text-align: center; transform: translateY(-55%); font-size: 18px; }
+
+/* ---------- press flash (see hit() in ambient.ts) ---------- */
+/* the flash sits between the control's own background and its label */
+.lb, .pill, .tg-cap, [data-hit] { isolation: isolate; }
+.lb, .pill, .tg-cap { overflow: hidden; }
+.hit-a::before, .hit-b::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; right: 0; bottom: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--o6);
+  pointer-events: none;
+  opacity: 0;
+}
+.hit-a::before { animation: hitA .17s step-end 1; }
+.hit-b::before { animation: hitB .17s step-end 1; }
+@keyframes hitA { 0% { opacity: 1 } 45% { opacity: .5 } 100% { opacity: 0 } }
+@keyframes hitB { 0% { opacity: 1 } 45% { opacity: .5 } 100% { opacity: 0 } }
+/* labels turn dark while the flash is bright, so they stay readable */
+.hit-a .lb-t, .hit-a .lb-s, .tg-cap.hit-a { animation: hitTA .17s step-end 1; }
+.hit-b .lb-t, .hit-b .lb-s, .tg-cap.hit-b { animation: hitTB .17s step-end 1; }
+@keyframes hitTA { 0% { color: #000 } 45% { color: #000 } 100% { } }
+@keyframes hitTB { 0% { color: #000 } 45% { color: #000 } 100% { } }

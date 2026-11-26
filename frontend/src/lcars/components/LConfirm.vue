@@ -1,15 +1,15 @@
 <template>
   <div class="ovl" @click.self="closeConfirm(false)">
     <div class="cf" :class="`cf-${c.tone}`">
-      <svg class="cf-frame" width="360" height="150" aria-hidden="true">
+      <svg class="cf-frame stg sx" data-q="1" width="360" height="150" aria-hidden="true">
         <path class="cfa" :d="frame" />
         <rect class="cfb" x="174" y="0" width="186" height="6" />
       </svg>
-      <div class="cf-title">{{ c.title }}</div>
-      <div class="cf-body">{{ c.body }}</div>
-      <LLights class="cf-lights" :n="6" :seed="5" :period="[0.8, 2]" />
-      <LBtn class="cf-no" sound="cancel" :label="c.cancel" tone="g2" shape="pl" @press="closeConfirm(false)" />
-      <LBtn class="cf-yes" sound="set" :label="c.ok" :tone="c.tone === 'r' ? 'r' : c.tone === 'c' ? 'c3' : 'o3'" shape="pr" @press="closeConfirm(true)" />
+      <div class="cf-title stg" data-q="2">{{ c.title }}</div>
+      <div class="cf-body stg" data-q="2">{{ c.body }}</div>
+      <LLights class="cf-lights stg" data-q="4" :n="6" :seed="5" :period="[0.8, 2]" />
+      <LBtn class="cf-no stg" data-q="3" sound="cancel" :label="c.cancel" tone="g2" shape="pl" @press="closeConfirm(false)" />
+      <LBtn class="cf-yes stg" data-q="3" sound="set" :label="c.ok" :tone="c.tone === 'r' ? 'r' : c.tone === 'c' ? 'c3' : 'o3'" shape="pr" @press="closeConfirm(true)" />
     </div>
   </div>
 </template>

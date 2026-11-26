@@ -1,6 +1,6 @@
 /* Shell services shared by every module: the header notice line, the confirm panel,
    the numeric keypad and the alert acknowledgement. All rendered once by the shell. */
-import { reactive } from 'vue'
+import { onBeforeUnmount, reactive, ref } from 'vue'
 import { play } from './sfx'
 
 type ConfirmState = {
@@ -102,4 +102,31 @@ export const run = async (label: string, fn: () => unknown, failText: (m: string
     play('deny')
     return false
   }
+}
+
+/* A row of sub tabs strobes like the main nav: the tab just chosen blinks three times (class
+   "strobe s3") while its pane steps in. */
+export const useStrobe = () => {
+  const strobing = ref('')
+  let timer = 0
+  let raf1 = 0
+  let raf2 = 0
+  const stop = () => {
+    window.clearTimeout(timer)
+    window.cancelAnimationFrame(raf1)
+    window.cancelAnimationFrame(raf2)
+  }
+  const fire = (key: string) => {
+    stop()
+    strobing.value = ''
+    // one frame is drawn without the class, so a second press really restarts the strobe
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        strobing.value = key
+        timer = window.setTimeout(() => { strobing.value = '' }, 640)
+      })
+    })
+  }
+  onBeforeUnmount(stop)
+  return { strobing, fire }
 }

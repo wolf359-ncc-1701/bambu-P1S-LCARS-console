@@ -11,6 +11,7 @@
    timer API needs the account login), so they only fire while the console runs. */
 import { reactive } from 'vue'
 import type { MqttClient } from 'mqtt'
+import { client as printer } from '../printer'
 
 export type ChamberBroker = 'cloud' | 'sim'
 type Config = { mac: string, broker: ChamberBroker }
@@ -167,6 +168,8 @@ export const saveChamberConfig = (cfg: Config) => {
 
 /* ---- commands ---- */
 const cmd = (method: string, param: string) => {
+  // simulation mode must never switch the real heater
+  if (printer.isDemo) return
   publish(`APPWT${mac()}`, JSON.stringify({ method, param, time: Date.now() }))
   // one read-back after a burst of commands
   window.clearTimeout(findTimer)

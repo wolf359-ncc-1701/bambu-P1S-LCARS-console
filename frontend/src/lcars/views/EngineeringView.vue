@@ -10,7 +10,8 @@
       <LBtn
         v-for="(m, i) in MODES"
         :key="m.key"
-        class="tab"
+        class="tab s3"
+        :class="{ strobe: strobing === m.key }"
         :style="{ left: `${TAB_X + i * tabW}px`, width: `${tabW - 3}px` }"
         :label="t(`x.m_${m.key}`)"
         :tone="m.tone"
@@ -41,7 +42,7 @@ import { client } from '../../printer'
 import { refreshPrinter } from '../../stores/printer'
 import { usePlant } from '../systems'
 import { stage } from '../stage'
-import { run } from '../ui'
+import { run, useStrobe } from '../ui'
 import LBtn from '../components/LBtn.vue'
 import ThermalPanel from './eng/ThermalPanel.vue'
 
@@ -76,8 +77,12 @@ const mode = computed<Mode>(() => {
   return m in PANELS ? m : 'thermal'
 })
 const panel = computed(() => PANELS[mode.value])
+// a station tab strobes like a main nav tab while its panel steps in
+const { strobing, fire } = useStrobe()
 const setMode = (m: Mode) => {
-  if (m !== mode.value) router.replace({ path: '/control', query: m === 'thermal' ? {} : { m } })
+  if (m === mode.value) return
+  fire(m)
+  router.replace({ path: '/control', query: m === 'thermal' ? {} : { m } })
 }
 
 const lightOn = computed(() => device.value?.lights_report?.find(l => l.node === LightType.Chamber)?.mode === 'on')
