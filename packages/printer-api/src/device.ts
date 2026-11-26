@@ -54,6 +54,7 @@ export type DevicePrint = {
   subtask_name: string
   gcode_file?: string
   mc_print_line_number?: string // the G-code line being executed (not sent by every firmware)
+  s_obj?: number[] // label ids of the objects skipped in this job
   print_error: number
   home_flag: number
   hms: DeviceHMS[]

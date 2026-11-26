@@ -1,5 +1,6 @@
 export type DeviceSource = 'china' | 'global' | 'local'
-export type DeviceConnectionMode = 'cloud' | 'local'
+/* 'auto': the printer's own MQTT first, the cloud broker while that does not answer */
+export type DeviceConnectionMode = 'cloud' | 'local' | 'auto'
 
 export type DeviceRecord = {
   name: string
@@ -8,6 +9,8 @@ export type DeviceRecord = {
   code: string
   from: DeviceSource
   connect: DeviceConnectionMode
+  /* with a cloud link: still read the camera and files over the LAN (needs ip and code) */
+  lanMedia?: boolean
 }
 
 export const DEVICE_STORAGE_KEY = 'device'
@@ -21,8 +24,20 @@ const normalizeDevice = (value: unknown): DeviceRecord => ({
   from: ['china', 'global'].includes(String((value as Record<string, unknown>)?.from))
     ? String((value as Record<string, unknown>)?.from) as DeviceSource
     : 'local',
-  connect: (value as Record<string, unknown>)?.connect === 'local' ? 'local' : 'cloud',
+  connect: (['local', 'auto'] as unknown[]).includes((value as Record<string, unknown>)?.connect)
+    ? (value as Record<string, unknown>).connect as DeviceConnectionMode
+    : 'cloud',
+  lanMedia: (value as Record<string, unknown>)?.lanMedia === true,
 })
+
+export const updateDevice = (serial: string, patch: Partial<DeviceRecord>) => {
+  const devices = getDevices()
+  const index = devices.findIndex(item => item.serial === serial)
+  if (index < 0) return null
+  devices[index] = normalizeDevice({ ...devices[index], ...patch })
+  writeDevices(devices)
+  return devices[index]
+}
 
 const writeDevices = (devices: DeviceRecord[]) => {
   localStorage.setItem(DEVICE_STORAGE_KEY, JSON.stringify(devices))

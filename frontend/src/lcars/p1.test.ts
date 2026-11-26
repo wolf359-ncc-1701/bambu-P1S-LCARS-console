@@ -4,7 +4,7 @@ import { STEP, buildIndex, layerSpan, readLines } from './gcode'
 
 // the modules under test reach the printer client and the FTPS loader; neither is needed
 // here (vi.mock is hoisted above the imports)
-vi.mock('../printer', () => ({ getPrinterConnectionMode: () => 'local' }))
+vi.mock('../printer', () => ({ getPrinterConnectionMode: () => 'local', lanTarget: () => null }))
 vi.mock('../utils/device', () => ({ getCurrentDevice: () => null }))
 vi.mock('./thumbnail', () => ({ download3mf: vi.fn(), openFtp: vi.fn() }))
 

@@ -17,7 +17,7 @@
     @keydown.right.prevent="nudge(step)"
   >
     <svg :width="w" :height="h" :viewBox="`0 0 ${w} ${h}`" aria-hidden="true">
-      <rect v-for="i in n" :key="i" :x="(i - 1) * pitch" y="4" :width="pitch - 2" :height="h - 8" :fill="i <= lit ? cellColor(i) : 'var(--g1)'" />
+      <rect v-for="i in n" :key="i" :x="(i - 1) * pitch" y="4" :width="pitch - 2" :height="h - 8" :fill="i <= lit ? cellColor(i) : 'var(--g1)'" :opacity="i <= lit ? .62 : 1" />
       <g v-if="markX >= 0" :transform="`translate(${markX} 0)`">
         <rect x="-2" y="0" width="4" :height="h" :fill="dragging ? 'var(--o6)' : 'var(--g6)'" />
         <rect x="-5" y="0" width="10" height="3" :fill="dragging ? 'var(--o6)' : 'var(--g6)'" />
@@ -68,9 +68,11 @@ const pitch = computed(() => props.w / props.n)
 const span = computed(() => props.max - props.min)
 const lit = computed(() => Math.max(0, Math.min(props.n, Math.round((props.value - props.min) / span.value * props.n))))
 const shown = computed(() => (dragging.value ? preview.value : props.target))
+// the set point is always marked, also at the minimum (off): otherwise the lit cells of the
+// live reading look like the slider's position
 const markX = computed(() => {
-  if (!(shown.value > props.min || dragging.value) || !Number.isFinite(shown.value) || span.value <= 0) return -1
-  return Math.max(0, Math.min(props.w, (shown.value - props.min) / span.value * props.w))
+  if (!Number.isFinite(shown.value) || span.value <= 0) return -1
+  return Math.max(5, Math.min(props.w - 5, (shown.value - props.min) / span.value * props.w))
 })
 const cellColor = (i: number) => (i > props.n * .62 ? props.hot : props.color)
 

@@ -54,6 +54,24 @@
         <span>{{ t('x.plate') }} {{ detail.plate }}</span>
       </div>
       <LToggle class="d-t" :on="opts.ams" :label="t('x.use_ams')" @toggle="opts.ams = $event" />
+      <!-- each filament the plate uses and the tray it feeds from; tap to try the next tray -->
+      <div v-if="opts.ams && detail.fils.length" class="fmap lscroll-x">
+        <button
+          v-for="f in detail.fils"
+          :key="f.id"
+          type="button"
+          class="fm"
+          :class="{ bad: trayOf(f.id) === null }"
+          :aria-label="`${f.type} → ${trayOf(f.id)?.label ?? t('x.fm_none')}`"
+          @click="nextTray(f.id)"
+        >
+          <span class="sw" :style="{ background: f.color || 'var(--g3)' }" />
+          <span class="fm-t">{{ f.type || '?' }}</span>
+          <span class="fm-a">→</span>
+          <span class="sw" :style="{ background: trayOf(f.id)?.color || 'transparent' }" />
+          <span class="fm-s num">{{ trayOf(f.id)?.label ?? '—' }}</span>
+        </button>
+      </div>
       <LToggle class="d-t2" :on="opts.level" :label="t('x.bed_level')" @toggle="opts.level = $event" />
       <LBtn class="go" :label="t('x.commence')" tone="o3" shape="pr" dot :disabled="!sel || busy || detail.state === 'loading' || starting" @press="commence" />
     </div>
@@ -65,10 +83,11 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { GcodeState, type FTPFileInfo } from '@bambulab-p1screen/printer-api'
-import { client, getPrinterConnectionMode } from '../../printer'
+import { client, lanTarget } from '../../printer'
 import { releaseChain } from '../ambient'
 import { usePlant } from '../systems'
 import { openFtp, read3mf } from '../thumbnail'
+import { autoMap, loadedTrays, toAmsMapping, type FileFilament } from '../amsMap'
 import { confirmPanel, notice } from '../ui'
 import LBtn from '../components/LBtn.vue'
 import LToggle from '../components/LToggle.vue'
@@ -80,7 +99,10 @@ const router = useRouter()
 const { device, connected } = usePlant()
 const root = ref<HTMLElement | null>(null)
 
-const lan = computed(() => connected.value && getPrinterConnectionMode() === 'local')
+const lan = computed(() => {
+  void device.value // the reported address can fill in for a cloud device
+  return connected.value && !!lanTarget()
+})
 const busy = computed(() => [GcodeState.Running, GcodeState.Pause, GcodeState.Prepare, GcodeState.Slicing]
   .includes(device.value?.gcode_state ?? GcodeState.Unknown))
 
@@ -88,12 +110,31 @@ const files = ref<Rec[]>([])
 const state = ref<'idle' | 'loading' | 'ok' | 'error'>('idle')
 const error = ref('')
 const sel = ref<Rec | null>(null)
-const detail = reactive({ thumb: '', plate: '1', state: 'idle' as 'idle' | 'loading' | 'ok' | 'big' | 'none' | 'fail', pct: 0 })
+const detail = reactive({ thumb: '', plate: '1', state: 'idle' as 'idle' | 'loading' | 'ok' | 'big' | 'none' | 'fail', pct: 0, fils: [] as FileFilament[] })
+// filament id -> tray value (null: no loaded tray of that type)
+const fmap = ref<Record<number, number | null>>({})
+const trays = computed(() => loadedTrays(device.value))
+const trayOf = (id: number) => {
+  const v = fmap.value[id]
+  return v === null || v === undefined ? null : trays.value.find(t => t.value === v) ?? null
+}
+const nextTray = (id: number) => {
+  const list = trays.value
+  if (!list.length) return
+  const i = list.findIndex(t => t.value === fmap.value[id])
+  fmap.value = { ...fmap.value, [id]: list[(i + 1) % list.length].value }
+}
+const setFils = (fils: FileFilament[]) => {
+  detail.fils = fils
+  fmap.value = autoMap(fils, trays.value)
+}
 const opts = reactive({ ams: true, level: true })
+// with no AMS tray loaded the job comes from the external spool: start with "use AMS" off
+watch(() => trays.value.length > 0, (has) => { opts.ams = has }, { immediate: true })
 // above this a preview waits for a tap: over a slow link a large file takes minutes
 const PREVIEW_LIMIT = 16 * 1024 * 1024
 // previews already read, by path and size, so going back to a file is instant
-const previews = new Map<string, { thumb: string, plate: string }>()
+const previews = new Map<string, { thumb: string, plate: string, fils: FileFilament[] }>()
 const previewKey = (f: Rec) => `${f.path}|${f.size}`
 
 // only sliced projects: a bare .gcode needs a different print command than project_file
@@ -134,10 +175,12 @@ const select = async (f: Rec, force = false) => {
   const mine = ++seq
   sel.value = f
   Object.assign(detail, { thumb: '', plate: '1', state: 'idle', pct: 0 })
+  setFils([])
   if (!/\.3mf$/i.test(f.name)) return
   const known = previews.get(previewKey(f))
   if (known) {
     Object.assign(detail, { thumb: known.thumb, plate: known.plate, state: known.thumb ? 'ok' : 'none' })
+    setFils(known.fils)
     return
   }
   if (f.size > PREVIEW_LIMIT && !force) {
@@ -156,9 +199,10 @@ const select = async (f: Rec, force = false) => {
     if (mine !== seq) return
     const info = await read3mf(data)
     if (mine !== seq) return
-    previews.set(previewKey(f), { thumb: info.thumbnail, plate: info.plate })
+    previews.set(previewKey(f), { thumb: info.thumbnail, plate: info.plate, fils: info.filaments })
     if (previews.size > 64) previews.delete(previews.keys().next().value!)
     Object.assign(detail, { thumb: info.thumbnail, plate: info.plate, state: info.thumbnail ? 'ok' : 'none' })
+    setFils(info.filaments)
   } catch (e) {
     console.warn('[library] preview', e)
     if (mine === seq) detail.state = 'fail'
@@ -187,6 +231,13 @@ const starting = ref(false)
 const commence = async () => {
   const f = sel.value
   if (!f || starting.value) return
+  // every filament the plate uses needs a loaded tray of its type
+  if (opts.ams && detail.fils.some(x => trayOf(x.id) === null)) {
+    notice(t('x.fm_missing'), 'o')
+    return
+  }
+  // without the file's filament list (preview not read): the first tray, as before
+  const amsMapping = !opts.ams ? [] : detail.fils.length ? toAmsMapping(detail.fils, fmap.value) : [0]
   const ok = await confirmPanel({ title: t('x.print_title'), body: t('x.print_body', { name: f.name }), ok: t('x.confirm'), cancel: t('x.cancel'), tone: 'o' })
   if (!ok) return
   const sdPath = f.path.replace(/^\//, '')
@@ -209,7 +260,7 @@ const commence = async () => {
       vibration_cali: false,
       layer_inspect: false,
       use_ams: opts.ams,
-      ams_mapping: opts.ams ? [0] : [],
+      ams_mapping: amsMapping,
     })
     notice(t('x.commenced'), 'o')
     router.replace('/home')
@@ -278,7 +329,13 @@ onBeforeUnmount(() => {
 .d-n { position: absolute; left: calc(136px + var(--xw, 0px) * .45); top: 0; width: 86px; font-size: 14px; line-height: 16px; color: var(--o5); text-transform: none; white-space: normal; max-height: 60px; }
 .d-r { position: absolute; left: calc(136px + var(--xw, 0px) * .45); top: 66px; width: 86px; line-height: 13px; }
 .d-r span { display: block; }
-.d-t { position: absolute; left: 0; top: 120px; width: calc(222px + var(--xw, 0px) * .45); }
-.d-t2 { position: absolute; left: 0; top: 158px; width: calc(222px + var(--xw, 0px) * .45); }
-.go { position: absolute; left: 0; top: 200px; width: calc(222px + var(--xw, 0px) * .45); height: 64px; font-size: 18px; }
+.d-t { position: absolute; left: 0; top: 116px; width: calc(222px + var(--xw, 0px) * .45); }
+.d-t2 { position: absolute; left: 0; top: 178px; width: calc(222px + var(--xw, 0px) * .45); }
+.go { position: absolute; left: 0; top: 216px; width: calc(222px + var(--xw, 0px) * .45); height: 50px; font-size: 18px; }
+.fmap { position: absolute; left: 0; top: 152px; width: calc(222px + var(--xw, 0px) * .45); height: 22px; display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden; }
+.fm { flex: none; display: flex; align-items: center; gap: 3px; height: 22px; padding: 0 6px; border: 0; border-radius: 11px; background: var(--g1); color: var(--g6); font: 600 11px var(--lfont); cursor: pointer; }
+.fm.bad { background: var(--o2); color: #000; }
+.sw { width: 9px; height: 9px; border-radius: 2px; border: 1px solid var(--g4); }
+.fm-a { color: var(--g4); }
+.fm-s { min-width: 18px; }
 </style>

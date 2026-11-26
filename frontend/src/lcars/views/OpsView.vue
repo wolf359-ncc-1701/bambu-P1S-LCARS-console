@@ -24,7 +24,7 @@
           <div v-for="d in devices" :key="d.serial" class="ship" :class="{ cur: d.serial === current }">
             <button type="button" class="ship-m" @click="switchTo(d.serial)">
               <span class="ship-n ell">{{ d.name || d.serial }}</span>
-              <span class="ship-s">{{ d.serial }} • {{ t(d.connect === 'cloud' && d.from !== 'local' ? 'x.link_cloud' : 'x.link_local') }}</span>
+              <span class="ship-s">{{ d.serial }} • {{ t(d.from === 'local' ? 'x.link_local' : d.connect === 'cloud' ? 'x.link_cloud' : d.connect === 'auto' ? 'x.lk_auto' : 'x.link_local') }}</span>
             </button>
             <LBtn class="ship-e" :label="t('x.edit_device')" tone="g2" shape="pr" @press="router.push(`/setting/device/edit/${d.serial}`)" />
           </div>
@@ -36,10 +36,24 @@
       <template v-else-if="panel === 'comms'">
         <div class="ph"><span class="lbl">{{ t('x.o_comms') }}</span></div>
         <div class="kv"><span class="k">{{ t('x.status') }}</span><span class="v" :class="connected ? 'c-c4' : 'c-o4'">{{ linkStatus }}</span></div>
-        <div class="kv"><span class="k">{{ t('x.channel') }}</span><span class="v">{{ mode === 'cloud' ? t('x.link_cloud') : mode === 'local' ? t('x.link_local') : '—' }}</span></div>
+        <div class="kv">
+          <span class="k">{{ t('x.channel') }}</span>
+          <template v-if="cloudCapable">
+            <LBtn class="br3 l1" :label="t('x.lk_lan')" tone="g2" shape="pl" :active="linkPref === 'local'" @press="setLink('local')" />
+            <LBtn class="br3 l2" :label="t('x.lk_cloud')" tone="g2" :active="linkPref === 'cloud'" @press="setLink('cloud')" />
+            <LBtn class="br3 l3" :label="t('x.lk_auto')" tone="g2" shape="pr" :active="linkPref === 'auto'" @press="setLink('auto')" />
+            <span class="v now">{{ mode === 'cloud' ? t('x.lk_cloud') : mode === 'local' ? t('x.lk_lan') : '—' }}</span>
+          </template>
+          <span v-else class="v">{{ mode === 'local' ? t('x.link_local') : '—' }}</span>
+        </div>
         <div class="kv"><span class="k">{{ t('x.address') }}</span><span class="v num">{{ client.getLocalIPAddress() || '—' }}</span></div>
         <div class="kv"><span class="k">{{ t('x.signal') }}</span><span class="v"><LSeg :value="signal" :max="100" :n="12" :w="120" :h="10" color="var(--c4)" /> <span class="num">{{ signal }}%</span></span></div>
-        <div class="kv"><span class="k">{{ t('x.storage') }}</span><span class="v">{{ device ? (device.sdcard ? t('x.mounted') : t('x.unmounted')) : '—' }}</span></div>
+        <div v-if="cloudCapable" class="kv">
+          <span class="k">{{ t('x.lan_media') }}</span>
+          <LBtn class="br b1" :label="t('x.lm_on')" tone="g2" shape="pl" :active="lanMediaOn" :disabled="linkPref !== 'cloud'" @press="setLanMedia(true)" />
+          <LBtn class="br b2" :label="t('x.lm_off')" tone="g2" shape="pr" :active="!lanMediaOn" :disabled="linkPref !== 'cloud'" @press="setLanMedia(false)" />
+        </div>
+        <div v-else class="kv"><span class="k">{{ t('x.storage') }}</span><span class="v">{{ device ? (device.sdcard ? t('x.mounted') : t('x.unmounted')) : '—' }}</span></div>
         <LBtn class="pa1" :label="t('x.relink')" tone="c2" shape="pr" dot :disabled="!currentDevice" @press="reconnect" />
       </template>
 
@@ -101,7 +115,13 @@
       <!-- ===== standby, camera and console updates ===== -->
       <template v-else-if="panel === 'kiosk'">
         <div class="ph"><span class="lbl">{{ t('x.o_kiosk') }}</span></div>
-        <LToggle class="kt kt0" :on="cam.enabled" :label="t('x.k_cam')" :sub="t('x.k_cam_d')" @toggle="setCamEnabled" />
+        <LToggle class="kt kt0 half" :on="cam.enabled" :label="t('x.k_cam')" :sub="t('x.k_cam_d')" @toggle="setCamEnabled" />
+        <!-- snapshot mode: how often a picture is fetched (the camera is let go in between) -->
+        <div class="snap">
+          <span class="k">{{ t('x.k_snap') }}</span>
+          <LSlider class="snap-s" :value="cam.snapS" :target="cam.snapS" :min="5" :max="60" :step="5" :n="11" :w="120" :h="22" color="var(--c3)" unit="s" :aria="t('x.k_snap')" @commit="setSnapInterval" />
+          <span class="num snap-v">{{ cam.snapS }}s</span>
+        </div>
         <LToggle class="kt kt1" :on="standby.enabled" :label="t('x.k_standby')" :sub="t('x.k_standby_d')" @toggle="setStandbyEnabled" />
         <LToggle v-if="canSleep" class="kt kt2" :on="standby.sleepIdle" :label="t('x.k_sleep')" :sub="t('x.k_sleep_d')" :disabled="!standby.enabled" @toggle="setSleepIdle" />
         <div class="kv ku0">
@@ -127,7 +147,11 @@
           <span class="k">{{ t('x.language') }}</span>
           <LBtn v-for="(l, i) in LANGS" :key="l.v" class="lang" :style="{ left: `${86 + i * 84}px` }" :label="l.label || t('x.lang_auto')" tone="g2" shape="pp" :active="langPref === l.v" @press="setLang(l.v)" />
         </div>
-        <LToggle class="if0" :on="soundOn" :label="t('x.sound')" :sub="t('x.sound_d')" @toggle="toggleSound" />
+        <LToggle class="if0" compact :on="soundOn" :label="t('x.sound')" @toggle="toggleSound" />
+        <!-- night mode and its window: each hour button steps one hour -->
+        <LToggle class="ifn" compact :on="night.on" :label="t('x.night')" @toggle="setNight({ on: $event })" />
+        <LBtn class="nh nh1" :label="`${two(night.from)}:00`" tone="g2" shape="pl" :aria-label="t('x.night_from')" @press="setNight({ from: (night.from + 1) % 24 })" />
+        <LBtn class="nh nh2" :label="`${two(night.to)}:00`" tone="g2" shape="pr" :aria-label="t('x.night_to')" @press="setNight({ to: (night.to + 1) % 24 })" />
         <template v-if="bridge">
           <LToggle class="if1" compact :on="native.hide" :label="t('x.hide_bar')" @toggle="setNative('hide', $event)" />
           <LToggle class="if2" compact :on="native.land" :label="t('x.land_lock')" @toggle="setNative('land', $event)" />
@@ -153,18 +177,20 @@ import semverGt from 'semver/functions/gt'
 import { HomeFlagBit } from '@bambulab-p1screen/printer-api'
 import { client, connectPrinter, getPrinterConnectionMode } from '../../printer'
 import { refreshPrinter, usePrinterStore } from '../../stores/printer'
-import { getCurrentDevice, getDevices, setCurrentDevice } from '../../utils/device'
+import { getCurrentDevice, getDevices, setCurrentDevice, updateDevice, type DeviceConnectionMode } from '../../utils/device'
 import { getLocalePreference, setLocalePreference, type LocalePreference } from '../../i18n'
 import { MAC_RE, brokerUrl, chamber as ch, chamberLive, saveChamberConfig, type ChamberBroker } from '../chamber'
 import { usePlant } from '../systems'
 import { setSound, sound } from '../sfx'
 import { dimPref, kiosk, setDimPref } from '../kiosk'
 import { confirmPanel, notice, run } from '../ui'
-import { cam, setCamEnabled } from '../camera'
+import { cam, setCamEnabled, setSnapInterval } from '../camera'
 import { setSleepIdle, setStandbyEnabled, standby } from '../standby'
+import { night, setNight } from '../night'
 import { checkNative, readNative, setUpdateOrigin, update } from '../update'
 import LBtn from '../components/LBtn.vue'
 import LSeg from '../components/LSeg.vue'
+import LSlider from '../components/LSlider.vue'
 import LToggle from '../components/LToggle.vue'
 
 const { t, locale } = useI18n()
@@ -192,6 +218,7 @@ watch(panel, (v) => {
   try { sessionStorage.setItem(PANEL_KEY, v) } catch { /* private mode */ }
 })
 const fail = (m: string) => t('x.failed', { message: m })
+const two = (n: number) => String(n).padStart(2, '0')
 
 /* ---- vessel ---- */
 const devices = ref(getDevices())
@@ -218,11 +245,42 @@ const linkStatus = computed(() => {
   const c = client.mqttClient
   if (!c) return t('connection_not_connected')
   if (c.connected) return t('connection_connected')
-  if (c.reconnecting) return t('connection_reconnecting')
-  return t('connection_disconnected')
+  void clock.value
+  const left = client.retryAt ? Math.max(0, Math.ceil((client.retryAt - Date.now()) / 1000)) : 0
+  const why = client.failures >= 2 ? ` • ${t('x.link_mute')}` : ''
+  return `${t('connection_disconnected')}${why} • ${left ? t('x.link_retry', { s: left }) : t('x.link_trying')}`
 })
-const reconnect = () => {
+/* link choice for a cloud-registered printer: LAN, cloud, or auto (LAN first, cloud fallback) */
+const cloudCapable = computed(() => !!currentDevice.value && currentDevice.value.from !== 'local')
+const linkPref = computed(() => currentDevice.value?.connect ?? 'local')
+// with auto the camera and files always use the LAN; with LAN they always do
+const lanMediaOn = computed(() => linkPref.value !== 'cloud' || !!currentDevice.value?.lanMedia)
+const setLink = (connect: DeviceConnectionMode) => {
+  const d = currentDevice.value
+  if (!d || d.connect === connect) return
+  if (connect !== 'cloud' && !d.ip) {
+    notice(t('x.lk_need_ip'), 'o')
+    return
+  }
+  currentDevice.value = updateDevice(d.serial, { connect })
+  devices.value = getDevices()
   if (currentDevice.value) connectPrinter(currentDevice.value)
+  notice(t('x.linking'), 'c')
+}
+const setLanMedia = (on: boolean) => {
+  const d = currentDevice.value
+  if (!d || linkPref.value !== 'cloud') return
+  if (on && !d.ip && !client.getLocalIPAddress()) {
+    notice(t('x.lk_need_ip'), 'o')
+    return
+  }
+  currentDevice.value = updateDevice(d.serial, { lanMedia: on })
+  devices.value = getDevices()
+}
+const reconnect = () => {
+  // the same link: just try now; otherwise build it again
+  if (client.mqttClient && !client.mqttClient.connected && client.connectOptions?.serial === currentDevice.value?.serial) client.retryNow()
+  else if (currentDevice.value) connectPrinter(currentDevice.value)
   notice(t('x.linking'), 'c')
 }
 
@@ -378,11 +436,16 @@ const checkUpdate = async () => {
 }
 
 /* telemetry export on Android reads this hook from the native side */
+// a 1 s tick for the reconnect countdown
+const clock = ref(0)
+let clockTimer = 0
 onMounted(() => {
   ;(window as any).__P1ScreenGetDeviceInfo = getDeviceInfo
+  clockTimer = window.setInterval(() => { clock.value++ }, 1000)
 })
 onBeforeUnmount(() => {
   delete (window as any).__P1ScreenGetDeviceInfo
+  window.clearInterval(clockTimer)
 })
 </script>
 
@@ -415,6 +478,11 @@ onBeforeUnmount(() => {
 .br { position: absolute; top: 3px; width: 98px; height: 26px; font-size: 13px; }
 .br.b1 { left: 110px; }
 .br.b2 { left: 210px; }
+.br3 { position: absolute; top: 3px; width: 66px; height: 26px; font-size: 13px; }
+.br3.l1 { left: 110px; }
+.br3.l2 { left: 178px; }
+.br3.l3 { left: 246px; }
+.now { position: absolute; left: 324px; font-size: 13px !important; color: var(--g5) !important; }
 .mac-bad { position: absolute; left: 0; top: 190px; }
 
 .tbl { position: absolute; left: 0; top: 26px; width: calc(414px + var(--xw, 0px)); height: 240px; }
@@ -435,7 +503,11 @@ onBeforeUnmount(() => {
 .langs { position: absolute; left: 0; top: 26px; width: calc(414px + var(--xw, 0px)); height: 30px; }
 .langs .k { position: absolute; left: 0; top: 8px; }
 .lang { position: absolute; top: 0; width: 80px; height: 30px; font-size: 14px; }
-.if0 { position: absolute; left: 0; top: 64px; width: calc(414px + var(--xw, 0px)); }
+.if0 { position: absolute; left: 0; top: 64px; width: calc(205px + var(--xw, 0px) / 2); }
+.ifn { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 64px; width: calc(105px + var(--xw, 0px) / 4); }
+.nh { position: absolute; top: 64px; width: calc(48px + var(--xw, 0px) / 8); height: 34px; font-size: 13px; }
+.nh1 { left: calc(318px + var(--xw, 0px) * .75); }
+.nh2 { left: calc(366px + var(--xw, 0px) * .875); }
 .if1 { position: absolute; left: 0; top: 102px; width: calc(205px + var(--xw, 0px) / 2); }
 .if2 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 102px; width: calc(205px + var(--xw, 0px) / 2); }
 .if3 { position: absolute; left: 0; top: 140px; width: calc(205px + var(--xw, 0px) / 2); }
@@ -445,6 +517,11 @@ onBeforeUnmount(() => {
 .ver { position: absolute; right: 0; top: 0; font-size: 13px; }
 .kt { position: absolute; left: 0; width: calc(414px + var(--xw, 0px)); }
 .kt0 { top: 26px; }
+.kt0.half { width: calc(236px + var(--xw, 0px) / 2); }
+.snap { position: absolute; left: calc(244px + var(--xw, 0px) / 2); top: 26px; width: 170px; height: 34px; }
+.snap .k { position: absolute; left: 0; top: 0; font-size: 11px; }
+.snap-s { position: absolute; left: 0; top: 12px; }
+.snap-v { position: absolute; left: 126px; top: 14px; font-size: 14px; color: var(--c5); }
 .kt1 { top: 64px; }
 .kt2 { top: 102px; }
 .ku0 { position: absolute; left: 0; top: 140px; width: calc(414px + var(--xw, 0px)); }

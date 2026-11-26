@@ -9,7 +9,7 @@
       </svg>
       <div class="kp-title">{{ k.title }}</div>
       <div class="kp-sub">{{ k.sub }}</div>
-      <div class="kp-val num" :class="{ 'kp-bad': outOfRange }">{{ k.value || '—' }}<span class="kp-u">{{ k.unit }}</span></div>
+      <div class="kp-val num" :class="{ 'kp-bad': outOfRange, 'kp-fresh': k.fresh }">{{ k.value || '—' }}<span class="kp-u">{{ k.unit }}</span></div>
       <div class="kp-range cap">{{ t('x.range') }} {{ k.min }}–{{ k.max }}</div>
 
       <div class="kp-presets">
@@ -21,7 +21,7 @@
           :label="`${p.label} ${p.value}`"
           :tone="k.value !== '' && Number(k.value) === p.value ? 'o3' : 'c1'"
           shape="pl"
-          @press="k.value = String(p.value)"
+          @press="k.value = String(p.value); k.fresh = true"
         />
       </div>
 
@@ -65,6 +65,12 @@ const canSet = computed(() => k.value !== '' && !outOfRange.value)
 const press = (key: string) => {
   // each digit has its own pitch, like a real keypad
   if (key !== '<') play('key', { rate: .92 + Number(key) * .02 })
+  // the first key replaces the value shown at opening (typing 0 over 50 means 0, not 500)
+  if (k.fresh) {
+    k.fresh = false
+    k.value = key === '<' ? '' : key
+    return
+  }
   if (key === '<') k.value = k.value.slice(0, -1)
   else if (k.value === '0') k.value = key
   else if (k.value.length < k.maxLen) k.value += key
@@ -85,6 +91,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <style scoped>
+/* the value shown at opening is replaced by the first key: drawn as selected */
+.kp-fresh { text-decoration: underline; text-decoration-color: var(--o4); text-underline-offset: 4px; opacity: .75; }
 .ovl { position: absolute; left: 0; top: 0; z-index: 10; width: 100%; height: 360px; background: rgba(0, 0, 0, .82); }
 .kp { position: absolute; left: 104px; top: 76px; width: 532px; height: 268px; background: #000; }
 .kp-frame { position: absolute; left: 0; top: 0; }

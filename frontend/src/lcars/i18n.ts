@@ -11,7 +11,7 @@ const zh = {
   fn_files: '文件', fn_settings: '设置', fn_alerts: '告警',
   cond_none: '未连接', cond_green: '状态正常', cond_yellow: '需要注意', cond_red: '打印错误',
   auto_on: '自动 开', auto_idle: '自动 待机', auto_off: '自动 关',
-  link_local: '局域网', link_cloud: '云端', no_link: '未连接打印机', link_down: '连接中断',
+  link_local: '局域网', link_cloud: '云端', no_link: '未连接打印机', link_down: '连接中断', link_retry: '{s} 秒后重试', link_auth: '访问码错误', link_mute: '打印机无响应', link_trying: '正在重连', link_auto: '自动',
   boot_title: '拓竹打印屏', boot_font: '加载字体', boot_link: '建立连接', boot_ready: '系统就绪', boot_build: '版本',
   rotate_hint: '请横置设备',
 
@@ -24,7 +24,7 @@ const zh = {
 
   // home
   standing_by: '空闲', no_link_t: '未连接', unnamed: '未命名任务', layer: '层', t_minus: '剩余', eta: '完成于',
-  suspend: '暂停', resume: '继续', abort: '中止', skip: '跳过对象', establish: '添加设备',
+  suspend: '暂停', resume: '继续', abort: '中止', skip: '跳过对象', sk_title: '跳过对象', sk_count: '共 {n} 个 • 已跳过 {s}', sk_done: '已跳过', sk_pick: '待跳过', sk_go: '跳过 {n} 个', sk_body: '跳过以下对象，打印机不再打印它们，无法撤销：{names}', sk_sent: '已发送跳过命令', establish: '添加设备',
   abort_title: '停止打印', abort_body: '确定要停止当前打印任务吗？此操作不可撤销。',
   diag_title: '状态巡检', diag_done: '巡检完成', zoom_title: '熔融沉积成型', zoom_layer: '层高', zoom_line: '线宽', zoom_now: '当前层',
   ready_thermal: '喷嘴 {n}° · 热床 {b}°', ready_ams: 'AMS 已装料 {n} 槽 · 湿度 {h} 级', ready_link: '打印机在线 · 信号 {s}%', ready_chamber: '仓温 {c}°',
@@ -80,7 +80,7 @@ const zh = {
   // library
   records: '打印文件', on_file: '个文件', reindex: '刷新', lib_offline: '文件列表需要局域网连接',
   lib_empty: '打印机存储中没有可打印文件', accessing: '读取中', scanning_pattern: '读取预览',
-  too_large: '文件较大 • 点按读取预览', no_preview: '无预览', preview_fail: '预览读取失败 • 点按重试', select_record: '选择一个文件', size: '大小', plate: '盘',
+  too_large: '文件较大 • 点按读取预览', no_preview: '无预览', fm_none: '没有对应耗材', fm_missing: '有耗材在 AMS 里找不到同类型的料，点它换一个槽位，或者关掉 AMS', preview_fail: '预览读取失败 • 点按重试', select_record: '选择一个文件', size: '大小', plate: '盘',
   use_ams: '使用 AMS', bed_level: '热床调平', commence: '开始打印', print_title: '开始打印',
   print_body: '将在打印机上开始打印 {name}。请确认热床上没有物体。', commenced: '已开始打印',
   dir_root: '根目录', dir_cache: '缓存',
@@ -88,7 +88,7 @@ const zh = {
   // operations
   o_vessel: '设备', o_comms: '连接', o_soft: '固件', o_diag: '校准', o_proto: '打印选项', o_kiosk: '待机与更新', o_iface: '界面', o_chamber: '仓温',
   registry: '设备列表', register: '添加设备', edit_device: '编辑', status: '状态', channel: '通道', address: '地址',
-  signal: '信号', storage: '存储卡', mounted: '已插入', unmounted: '未插入', relink: '重新连接',
+  signal: '信号', storage: '存储卡', mounted: '已插入', unmounted: '未插入', relink: '重新连接', k_snap: '抓拍间隔', night: '夜间', night_from: '夜间开始时间', night_to: '夜间结束时间', lk_lan: '局域网', lk_cloud: '云端', lk_auto: '自动', lan_media: '局域网图传', lm_on: '使用', lm_off: '不用', lk_need_ip: '先在编辑里填打印机的局域网地址',
   no_data: '无数据', cal_level: '热床调平', cal_res: '振动补偿', cal_motor: '电机降噪',
   cal_ready: '就绪', cal_busy: '打印机忙', cal_running: '进行中', cal_go: '开始校准',
   recovery: '丢步自动恢复', language: '语言', lang_auto: '跟随系统', build: '版本',
@@ -99,7 +99,7 @@ const zh = {
   linking: '正在连接', vessel_selected: '已切换设备',
 
   // camera, standby, maintenance
-  cam_title: '打印仓摄像头', cam_live: '实时', cam_slow: '画面延迟', cam_link: '连接中', cam_retry: '{s} 秒后重连', cam_cloud_s: '仅局域网',
+  cam_title: '打印仓摄像头', cam_live: '实时', cam_slow: '画面延迟', cam_link: '连接中', cam_retry: '{s} 秒后重连', cam_cloud_s: '仅局域网', cam_lamp: '灯', cam_m_live: '实时', cam_m_snap: '抓拍', cam_snap: '抓拍 • {s} 秒',
   cam_off: '已关闭', cam_none: '没有画面', cam_disabled: '摄像头已在设置中关闭', cam_cloud: '摄像头只能在局域网模式下查看',
   cam_nodev: '没有设备地址或访问码', cam_retrying: '连接断开，稍后自动重连', cam_wait: '等待第一帧画面',
   sb_wake: '轻触唤醒', sb_est: '位置为估算', sb_gcode: 'G-code', sb_line: '行',
@@ -130,7 +130,7 @@ const en: Messages = {
   fn_files: 'FILES', fn_settings: 'SETTINGS', fn_alerts: 'ALERTS',
   cond_none: 'NO LINK', cond_green: 'CONDITION GREEN', cond_yellow: 'CONDITION YELLOW', cond_red: 'CONDITION RED',
   auto_on: 'AUTO • ON', auto_idle: 'AUTO • IDLE', auto_off: 'AUTO • OFF',
-  link_local: 'LOCAL NET', link_cloud: 'SUBSPACE LINK', no_link: 'NO PRINTER LINKED', link_down: 'LINK LOST',
+  link_local: 'LOCAL NET', link_cloud: 'SUBSPACE LINK', no_link: 'NO PRINTER LINKED', link_down: 'LINK LOST', link_retry: 'RETRY {s}S', link_auth: 'ACCESS DENIED', link_mute: 'NO REPLY', link_trying: 'RELINKING', link_auto: 'AUTO',
   boot_title: 'LCARS • REPLICATOR CONTROL', boot_font: 'LOADING TYPEFACE', boot_link: 'ESTABLISHING LINK', boot_ready: 'SYSTEMS READY', boot_build: 'BUILD',
   rotate_hint: 'TURN DEVICE SIDEWAYS',
 
@@ -141,7 +141,7 @@ const en: Messages = {
   stores: 'MATTER STORES', stores_fn: 'AMS',
 
   standing_by: 'STANDING BY', no_link_t: 'NO LINK', unnamed: 'UNNAMED PATTERN', layer: 'STRATUM', t_minus: 'T-MINUS', eta: 'ETA',
-  suspend: 'SUSPEND', resume: 'RESUME', abort: 'ABORT', skip: 'SKIP OBJECT', establish: 'ESTABLISH LINK',
+  suspend: 'SUSPEND', resume: 'RESUME', abort: 'ABORT', skip: 'SKIP OBJECT', sk_title: 'SKIP OBJECTS', sk_count: '{n} ON PLATE • {s} SKIPPED', sk_done: 'SKIPPED', sk_pick: 'TO SKIP', sk_go: 'SKIP {n}', sk_body: 'THE PRINTER STOPS PRINTING THESE. THIS CANNOT BE UNDONE: {names}', sk_sent: 'SKIP ORDER SENT', establish: 'ESTABLISH LINK',
   abort_title: 'ABORT REPLICATION', abort_body: 'STOP THE CURRENT PRINT? THIS CANNOT BE UNDONE.',
   diag_title: 'LEVEL 3 DIAGNOSTIC', diag_done: 'DIAGNOSTIC COMPLETE', zoom_title: 'FUSED DEPOSITION', zoom_layer: 'LAYER', zoom_line: 'LINE', zoom_now: 'STRATUM',
   ready_thermal: 'THERMAL ENVELOPE • CORE {n}° • PAD {b}°', ready_ams: 'MATTER STORES • {n} SILOS CHARGED • MOISTURE LEVEL {h}', ready_link: 'LINK NOMINAL • SIGNAL {s}%', ready_chamber: 'BAY ATMOSPHERE • {c}°',
@@ -191,14 +191,14 @@ const en: Messages = {
 
   records: 'PATTERN RECORDS', on_file: 'ON FILE', reindex: 'RE-INDEX', lib_offline: 'LIBRARY ACCESS NEEDS A LOCAL NET LINK',
   lib_empty: 'NO PATTERNS ON FILE', accessing: 'ACCESSING LIBRARY', scanning_pattern: 'SCANNING PATTERN',
-  too_large: 'LARGE PATTERN • TAP TO SCAN', no_preview: 'NO PREVIEW', preview_fail: 'SCAN FAILED • TAP TO RETRY', select_record: 'SELECT A RECORD', size: 'SIZE', plate: 'PLATE',
+  too_large: 'LARGE PATTERN • TAP TO SCAN', no_preview: 'NO PREVIEW', fm_none: 'NO MATCH', fm_missing: 'A FILAMENT HAS NO MATCHING TRAY: TAP IT TO PICK ONE, OR TURN AMS OFF', preview_fail: 'SCAN FAILED • TAP TO RETRY', select_record: 'SELECT A RECORD', size: 'SIZE', plate: 'PLATE',
   use_ams: 'AMS FEED', bed_level: 'PAD SURVEY', commence: 'COMMENCE REPLICATION', print_title: 'COMMENCE REPLICATION',
   print_body: 'START PRINTING {name}? MAKE SURE THE PAD IS CLEAR.', commenced: 'REPLICATION COMMENCED',
   dir_root: 'ROOT', dir_cache: 'CACHE',
 
   o_vessel: 'VESSEL', o_comms: 'COMMS', o_soft: 'SOFTWARE', o_diag: 'DIAGNOSTIC', o_proto: 'PROTOCOLS', o_kiosk: 'STANDBY', o_iface: 'INTERFACE', o_chamber: 'ATMOSPHERE',
   registry: 'VESSEL REGISTRY', register: 'REGISTER VESSEL', edit_device: 'EDIT', status: 'STATUS', channel: 'CHANNEL', address: 'ADDRESS',
-  signal: 'SIGNAL', storage: 'DATA STORE', mounted: 'MOUNTED', unmounted: 'NOT MOUNTED', relink: 'RE-ESTABLISH LINK',
+  signal: 'SIGNAL', storage: 'DATA STORE', mounted: 'MOUNTED', unmounted: 'NOT MOUNTED', relink: 'RE-ESTABLISH LINK', k_snap: 'SNAP INTERVAL', night: 'NIGHT', night_from: 'NIGHT STARTS', night_to: 'NIGHT ENDS', lk_lan: 'LAN', lk_cloud: 'CLOUD', lk_auto: 'AUTO', lan_media: 'LAN MEDIA', lm_on: 'ON', lm_off: 'OFF', lk_need_ip: 'SET THE PRINTER LAN ADDRESS IN EDIT FIRST',
   no_data: 'NO DATA', cal_level: 'PAD SURVEY', cal_res: 'RESONANCE SWEEP', cal_motor: 'MOTOR NOISE',
   cal_ready: 'READY', cal_busy: 'BAY OCCUPIED', cal_running: 'IN PROGRESS', cal_go: 'COMMENCE DIAGNOSTIC',
   recovery: 'STEP-LOSS RECOVERY', language: 'LANGUAGE', lang_auto: 'SYSTEM', build: 'BUILD',
@@ -208,7 +208,7 @@ const en: Messages = {
   rev_available: 'REVISION AVAILABLE', sound: 'AUDIO', sound_d: 'CONSOLE TONES FOR PRESSES, PRINT EVENTS AND ALERTS',
   linking: 'LINKING', vessel_selected: 'VESSEL SELECTED',
 
-  cam_title: 'CHAMBER VISUAL', cam_live: 'LIVE', cam_slow: 'DELAYED', cam_link: 'LINKING', cam_retry: 'RETRY {s}S', cam_cloud_s: 'LAN ONLY',
+  cam_title: 'CHAMBER VISUAL', cam_live: 'LIVE', cam_slow: 'DELAYED', cam_link: 'LINKING', cam_retry: 'RETRY {s}S', cam_cloud_s: 'LAN ONLY', cam_lamp: 'LAMP', cam_m_live: 'LIVE', cam_m_snap: 'SNAP', cam_snap: 'SNAP • {s}S',
   cam_off: 'OFFLINE', cam_none: 'NO VISUAL', cam_disabled: 'Camera switched off in Operations', cam_cloud: 'The camera is only reachable in LAN mode',
   cam_nodev: 'No printer address or access code', cam_retrying: 'Link lost, retrying', cam_wait: 'Waiting for the first frame',
   sb_wake: 'TOUCH TO WAKE', sb_est: 'POSITION ESTIMATED', sb_gcode: 'G-CODE', sb_line: 'LINE',

@@ -12,6 +12,7 @@
      and are posted to the backend (/api/log), which appends them to a log file on disk.
    Everything degrades to a no-op in a desktop browser. */
 import { reactive } from 'vue'
+import { isNight } from './night'
 
 type Bridge = {
   setBrightness?: (level: number) => void
@@ -70,13 +71,15 @@ const pushError = (msg: string, detail = '') => {
    print     a print runs, nobody touched the screen lately: about half
    standby   the standby screen over a running print
    ambient   the standby screen with no job: as dim as is still readable
-   sleep     the screen may switch off (system timeout) */
-export type Light = 'full' | 'print' | 'standby' | 'ambient' | 'sleep'
-const LEVEL: Record<Light, number> = { full: -1, print: .5, standby: .08, ambient: .035, sleep: .035 }
+   sleep     the screen may switch off (system timeout)
+   night     night mode, someone is here: readable but not glaring */
+export type Light = 'full' | 'print' | 'standby' | 'ambient' | 'sleep' | 'night'
+const LEVEL: Record<Light, number> = { full: -1, print: .5, standby: .08, ambient: .035, sleep: .035, night: .18 }
 let sleeping = false
 export const setLight = (l: Light) => {
   const b = bridge()
-  if (!dimPref.on) l = 'full'
+  // idle dimming off keeps the screen bright, but not above the night cap inside the night window
+  if (!dimPref.on && l !== 'full') l = isNight() ? 'night' : 'full'
   if (l === kiosk.light) return
   kiosk.light = l
   kiosk.dimmed = l !== 'full'

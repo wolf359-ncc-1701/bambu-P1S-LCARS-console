@@ -13,7 +13,7 @@
    it does, the window follows that line exactly. When it does not, the window shows the
    current layer and the caller marks its position inside the layer as an estimate. */
 import { reactive } from 'vue'
-import { getPrinterConnectionMode } from '../printer'
+import { lanTarget } from '../printer'
 import { download3mf, openFtp } from './thumbnail'
 
 export const STEP = 512
@@ -34,7 +34,32 @@ export const gcode = reactive({
   progress: 0,
   lines: 0,
   layers: 0,
+  // the plate's objects (Metadata/plate_N.json), for skipping one during the print
+  objects: [] as PlateObject[],
+  // bed size the object boxes are drawn against (mm)
+  bed: 256,
 })
+
+export type PlateObject = { id: number, name: string, box: [number, number, number, number] }
+
+/* Objects of a plate from its plate_N.json: id (the label id the firmware skips by), name and
+   the bounding box on the bed in mm. Entries without a usable id are left out. */
+export const parsePlateObjects = (json: string): PlateObject[] => {
+  try {
+    const data = JSON.parse(json)
+    const list: unknown[] = Array.isArray(data?.bbox_objects) ? data.bbox_objects : []
+    const out: PlateObject[] = []
+    for (const o of list as Record<string, unknown>[]) {
+      const id = Number(o?.id)
+      const b = Array.isArray(o?.bbox) ? (o.bbox as unknown[]).map(Number) : []
+      if (!Number.isInteger(id) || id < 0 || b.length !== 4 || b.some(v => !Number.isFinite(v))) continue
+      out.push({ id, name: String(o?.name ?? `#${id}`), box: [b[0], b[1], b[2], b[3]] })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
 
 let index: GcodeIndex | null = null
 let loadSeq = 0
@@ -143,15 +168,17 @@ let retryTimer: ReturnType<typeof setTimeout> | undefined
 
 /* Loads the job's G-code once per job. Safe to call often. */
 export const ensureGcode = async (key: string, subtask?: string, gcodeFile?: string) => {
-  if (!key || key === gcode.key) return
+  // the same job is read again only when it was skipped for want of a LAN link that is there now
+  if (!key || (key === gcode.key && !(gcode.status === 'cloud' && lanTarget()))) return
   gcode.key = key
   index = null
   gcode.lines = 0
   gcode.layers = 0
   gcode.progress = 0
+  gcode.objects = []
   // a new key always supersedes a load still running
   const mine = ++loadSeq
-  if (getPrinterConnectionMode() === 'cloud') {
+  if (!lanTarget()) {
     gcode.status = 'cloud'
     return
   }
@@ -167,12 +194,20 @@ export const ensureGcode = async (key: string, subtask?: string, gcodeFile?: str
     }
     if (mine !== loadSeq) return
     const { unzipSync } = await import('fflate')
-    let plate = '1'
-    const meta = unzipSync(zip, { filter: f => f.name === 'Metadata/slice_info.config' })['Metadata/slice_info.config']
-    if (meta) {
-      const m = /<metadata key="index" value="(\d+)"/.exec(new TextDecoder().decode(meta))
-      if (m) plate = m[1]
+    if (mine !== loadSeq) return
+    // the plate being printed: named by the printer's file path when it gives one
+    // (Metadata/plate_2.gcode), else the first plate the slice info lists
+    let plate = gcodeFile ? /(?:^|\/)plate_(\d+)\.gcode$/i.exec(gcodeFile)?.[1] ?? '' : ''
+    if (!plate) {
+      plate = '1'
+      const meta = unzipSync(zip, { filter: f => f.name === 'Metadata/slice_info.config' })['Metadata/slice_info.config']
+      if (meta) {
+        const m = /<metadata key="index" value="(\d+)"/.exec(new TextDecoder().decode(meta))
+        if (m) plate = m[1]
+      }
     }
+    const pj = unzipSync(zip, { filter: f => f.name === `Metadata/plate_${plate}.json` })[`Metadata/plate_${plate}.json`]
+    if (pj) gcode.objects = parsePlateObjects(new TextDecoder().decode(pj))
     // only the plate being printed; any plate's G-code when the index is unknown
     let tooLarge = false
     // unzipSync inflates every entry the filter accepts, so accept one at most
@@ -226,6 +261,7 @@ export const dropGcode = () => {
   index = null
   gcode.key = ''
   gcode.status = 'none'
+  gcode.objects = []
   gcode.lines = 0
   gcode.layers = 0
 }

@@ -6,7 +6,12 @@
   <div class="vs" :class="{ live: hasPicture, big }" :style="{ width: `${w}px`, height: `${h}px` }" role="button" tabindex="0" :aria-label="t('x.cam_title')" @click="emit('press')" @keydown.enter.prevent="emit('press')">
     <div class="vs-head">
       <span class="vs-t">{{ t('x.cam_title') }}</span>
-      <span class="vs-st" :class="`st-${badge.tone}`">{{ badge.text }}</span>
+      <span class="vs-ks">
+        <!-- chamber light and stream mode; their taps do not enlarge the view -->
+        <button type="button" class="vs-k" :class="{ on: lightOn }" :aria-pressed="lightOn" :disabled="!linked || lightBusy" @click.stop="toggleLight" @keydown.enter.stop @keydown.space.stop>{{ t('x.cam_lamp') }}</button>
+        <button type="button" class="vs-k" :class="{ on: cam.mode === 'snap' }" :aria-pressed="cam.mode === 'snap'" @click.stop="setCamMode(cam.mode === 'snap' ? 'live' : 'snap')" @keydown.enter.stop @keydown.space.stop>{{ t(cam.mode === 'snap' ? 'x.cam_m_snap' : 'x.cam_m_live') }}</button>
+        <span class="vs-st" :class="`st-${badge.tone}`">{{ badge.text }}</span>
+      </span>
     </div>
 
     <div class="vs-pic" :style="picBox">
@@ -45,11 +50,27 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { acquireCamera, cam, releaseCamera } from '../camera'
+import { LightType } from '@bambulab-p1screen/printer-api'
+import { acquireCamera, cam, releaseCamera, setCamMode } from '../camera'
+import { client } from '../../printer'
+import { refreshPrinter } from '../../stores/printer'
+import { usePlant } from '../systems'
+import { run } from '../ui'
 
 const props = withDefaults(defineProps<{ w: number, h: number, paused?: boolean, big?: boolean }>(), { paused: false, big: false })
 const emit = defineEmits<{ (e: 'press'): void }>()
 const { t } = useI18n()
+
+const { device, connected: linked } = usePlant()
+const lightOn = computed(() => device.value?.lights_report?.find(l => l.node === LightType.Chamber)?.mode === 'on')
+const lightBusy = ref(false)
+const toggleLight = async () => {
+  const on = !lightOn.value
+  lightBusy.value = true
+  await run(t(on ? 'x.light_on' : 'x.light_off'), () => client.setLight(LightType.Chamber, on), m => t('x.failed', { message: m }))
+  lightBusy.value = false
+  refreshPrinter()
+}
 
 const HEAD = 18
 const FOOT = 15
@@ -113,6 +134,7 @@ const badge = computed(() => {
     case 'connecting': return { text: t('x.cam_link'), tone: 'g' }
     case 'retry': return { text: t('x.cam_retry', { s: Math.max(0, Math.ceil((cam.retryAt - now.value) / 1000)) }), tone: 'o' }
     case 'cloud': return { text: t('x.cam_cloud_s'), tone: 'g' }
+    case 'snap': return { text: t('x.cam_snap', { s: Math.max(0, Math.ceil((cam.retryAt - now.value) / 1000)) }), tone: 'c' }
     default: return { text: t('x.cam_off'), tone: 'g' }
   }
 })
@@ -147,6 +169,10 @@ onBeforeUnmount(() => {
 .vs-head { position: absolute; left: 0; right: 0; top: 0; height: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--g1); }
 .vs-t { font-size: 12px; line-height: 14px; color: var(--c4); letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vs-st { font-size: 10px; line-height: 12px; padding: 0 5px; border-radius: 6px; color: #000; white-space: nowrap; }
+.vs-ks { display: flex; align-items: center; gap: 4px; }
+.vs-k { height: 14px; padding: 0 6px; border: 0; border-radius: 7px; background: var(--g2); color: var(--g6); font: 600 10px/14px var(--lfont); letter-spacing: .04em; cursor: pointer; }
+.vs-k.on { background: var(--o4); color: #000; }
+.vs-k:disabled { opacity: .4; cursor: default; }
 .st-c { background: var(--c3); }
 .st-y { background: var(--y4); }
 .st-o { background: var(--o4); }

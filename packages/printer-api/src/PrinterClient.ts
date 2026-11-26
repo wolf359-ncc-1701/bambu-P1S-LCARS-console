@@ -20,6 +20,8 @@ export type PrinterClientConnectOptions = {
   username: string
   password: string
   serial: string
+  /** Keep the last known printer state while the link is rebuilt (a switch between brokers). */
+  keepState?: boolean
 }
 
 export class PrinterClient {
@@ -36,6 +38,15 @@ export class PrinterClient {
   connectOptions: PrinterClientConnectOptions | null = null
   lastError: Error | null = null
   device: DeviceState = {}
+  /** When the next reconnect attempt is due (ms since epoch), 0 when none is waiting. */
+  retryAt = 0
+  /** Failed attempts since the last successful connection. */
+  failures = 0
+  /** When the last report from the printer arrived (ms since epoch). */
+  lastMessageAt = 0
+  /** Whether the link has ever connected since connect() was called. */
+  everConnected = false
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
 
   on(event: PrinterEvent, callback: (params: any) => void) {
     if (!this.listeners[event]) {
@@ -71,20 +82,24 @@ export class PrinterClient {
       console.warn('[PrintClient] missing connection parameters')
       return null
     }
-    this.stopConnection('recreate connection')
+    const keep = options.keepState && this.connectOptions?.serial === serial
+    const kept = keep ? { print: this.device.print, module: this.device.module } : null
+    this.stopConnection('recreate connection', !!kept)
     this.connectOptions = options
     this.reportTopic = `device/${serial}/report`
     this.requestTopic = `device/${serial}/request`
-    this.device.print = undefined
-    this.device.module = undefined
+    this.device.print = kept?.print
+    this.device.module = kept?.module
 
     try {
       const mqttClient = mqtt.connect(mqttUrl, {
         username,
         password,
         protocolVersion: 4,
-        reconnectPeriod: 5000,
-        reconnectOnConnackError: true,
+        // reconnects are scheduled here, with a growing delay: a printer that has stopped
+        // answering (another client holds its few MQTT slots) recovers sooner when not hammered
+        reconnectPeriod: 0,
+        connectTimeout: 20000,
       })
       this.mqttClient = mqttClient
       mqttClient.on('connect', this.onConnect.bind(this))
@@ -126,45 +141,155 @@ export class PrinterClient {
     ]).toString()
   }
 
-  private stopConnection(reason: string) {
+  /** Reconnects now instead of waiting for the scheduled attempt. */
+  retryNow() {
+    const o = this.connectOptions
+    if (!o || this.mqttClient?.connected) return
+    // a fresh client rather than reconnect(): reconnect() during an attempt still in flight
+    // opens a second socket and leaves the first one holding one of the printer's few slots
+    const ever = this.everConnected
+    const last = this.lastMessageAt
+    this.connect({ ...o, keepState: true })
+    this.everConnected = ever
+    this.lastMessageAt = last
+  }
+
+  private clearRetry() {
+    if (this.retryTimer) clearTimeout(this.retryTimer)
+    this.retryTimer = null
+    this.retryAt = 0
+  }
+
+  private scheduleRetry() {
+    const c = this.mqttClient
+    if (!c || c.connected || this.retryTimer) return
+    // an authentication failure will not fix itself: wait the longest step
+    const auth = this.lastError?.message?.includes('Not authorized')
+    const steps = [3000, 6000, 12000, 24000, 45000, 60000]
+    const base = auth ? 60000 : steps[Math.min(this.failures, steps.length - 1)]
+    this.failures++
+    const delay = Math.round(base * (0.85 + Math.random() * 0.3))
+    this.retryAt = Date.now() + delay
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null
+      this.retryAt = 0
+      if (this.mqttClient === c && !c.connected) {
+        this.lastError = null
+        c.reconnect()
+      }
+    }, delay)
+  }
+
+  /**
+   * Tries an MQTT login once and closes it again: true when the broker accepted it in time.
+   * Used to see whether a printer that stopped answering takes clients again.
+   */
+  static probe(options: PrinterClientConnectOptions, timeoutMs = 15000): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined') return resolve(false)
+      let done = false
+      let c: ReturnType<typeof mqtt.connect>
+      try {
+        c = mqtt.connect(options.mqttUrl, {
+          username: options.username,
+          password: options.password,
+          protocolVersion: 4,
+          reconnectPeriod: 0,
+          connectTimeout: timeoutMs,
+        })
+      } catch {
+        return resolve(false)
+      }
+      const finish = (ok: boolean) => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        c.removeAllListeners()
+        c.on('error', () => { /* closing */ })
+        if (!ok) {
+          c.end(true)
+          resolve(false)
+          return
+        }
+        // log out properly and wait for the socket to close, so the slot is free again
+        // before the caller makes the real connection
+        let settled = false
+        const settle = () => {
+          if (settled) return
+          settled = true
+          clearTimeout(fallback)
+          resolve(true)
+        }
+        const fallback = setTimeout(() => { c.end(true); settle() }, 2000)
+        c.end(false, settle)
+      }
+      const timer = setTimeout(() => finish(false), timeoutMs + 1000)
+      c.on('connect', () => finish(true))
+      c.on('error', () => finish(false))
+      c.on('close', () => finish(false))
+    })
+  }
+
+  private stopConnection(reason: string, keepState = false) {
+    this.clearRetry()
+    this.failures = 0
+    this.everConnected = false
+    this.lastMessageAt = 0
+    this.lastError = null
     if (this.mqttClient) {
       this.mqttClient.removeAllListeners()
+      // the aborted socket may still report an error; with no listener that would throw
+      this.mqttClient.on('error', () => { /* closing */ })
       this.mqttClient.end(true)
     }
     this.mqttClient = null
     this.connectOptions = null
     this.reportTopic = ''
     this.requestTopic = ''
-    this.device.print = undefined
-    this.device.module = undefined
+    if (!keepState) {
+      this.device.print = undefined
+      this.device.module = undefined
+    }
     this.rejectPendingPublishes(reason)
     this.emit(PrinterEvent.MQTT_STATE_CHANGE, null)
   }
 
   private async onConnect() {
+    const client = this.mqttClient
+    if (!client) return
     this.lastError = null
+    this.clearRetry()
+    this.failures = 0
+    this.everConnected = true
     console.log('[PrintClient] connected')
     const topic = this.reportTopic
-    if (!this.mqttClient || !topic) return
+    if (!topic) return
     try {
       console.log(`[PrintClient] subscribe topic: ${topic}`)
-      await this.mqttClient.subscribeAsync(topic)
+      await client.subscribeAsync(topic)
     } catch (err: any) {
+      // the client was replaced meanwhile (broker switch, relink): not ours to handle
+      if (this.mqttClient !== client) return
       console.error(`[PrintClient] subscribe failed: ${err.message}`)
-      this.stopConnection('subscribe failed')
+      this.lastError = err
+      // drop the socket and let the normal retry take over, rather than giving up for good
+      if (client.connected) client.stream?.destroy()
+      else this.scheduleRetry()
       return
     }
+    if (this.mqttClient !== client) return
 
     this.updateAllData().catch((err: any) => {
       console.warn(`[PrintClient] initial data sync failed: ${err.message}`)
     }).then(() => {
-      this.emit(PrinterEvent.MQTT_STATE_CHANGE, null)
+      if (this.mqttClient === client) this.emit(PrinterEvent.MQTT_STATE_CHANGE, null)
     })
   }
 
   private onClose() {
     console.log('[PrintClient] closed')
     this.rejectPendingPublishes('socket closed')
+    this.scheduleRetry()
     this.emit(PrinterEvent.MQTT_STATE_CHANGE, null)
   }
 
@@ -197,6 +322,7 @@ export class PrinterClient {
     if (topic !== this.reportTopic) {
       return
     }
+    this.lastMessageAt = Date.now()
     const raw = new TextDecoder().decode(payload)
     let data: Record<string, any> = {}
     try {
@@ -378,6 +504,14 @@ export class PrinterClient {
     if (result.param === param) {
       this.device.print.spd_lvl = level
     }
+  }
+
+  /**
+   * Skips objects of the running print by their label ids (Metadata/plate_N.json "id").
+   * The list sent is the whole set to skip, including any skipped before.
+   */
+  async skipObjects(ids: number[]) {
+    return this.request('print.skip_objects', { obj_list: ids })
   }
 
   /**

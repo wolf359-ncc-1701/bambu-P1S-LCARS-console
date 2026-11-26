@@ -15,12 +15,18 @@
    does not carry it. */
 import { reactive } from 'vue'
 import { getCurrentDevice } from '../utils/device'
-import { getPrinterConnectionMode } from '../printer'
+import { lanTarget } from '../printer'
 
-export type CamStatus = 'off' | 'cloud' | 'nodevice' | 'connecting' | 'live' | 'retry'
+export type CamStatus = 'off' | 'cloud' | 'nodevice' | 'connecting' | 'live' | 'retry' | 'snap'
+/* live: a continuous stream. snap: one picture, then the connection closes for cam.snapS seconds, so the
+   printer's few camera slots stay free (Bambu Studio can watch) and a slow link carries little */
+export type CamMode = 'live' | 'snap'
 
 export const cam = reactive({
   enabled: (() => { try { return localStorage.getItem('lcars_cam') !== '0' } catch { return true } })(),
+  // seconds between snapshots in snap mode
+  snapS: (() => { try { const v = Number(localStorage.getItem('lcars_cam_snap')); return v >= 5 && v <= 60 ? v : 10 } catch { return 10 } })(),
+  mode: ((() => { try { return localStorage.getItem('lcars_cam_mode') } catch { return null } })() === 'snap' ? 'snap' : 'live') as CamMode,
   status: 'off' as CamStatus,
   url: '', // object URL of the newest frame
   frameAt: 0, // Date.now() of the newest frame
@@ -30,6 +36,29 @@ export const cam = reactive({
   retryAt: 0,
   error: '',
 })
+
+export const setSnapInterval = (s: number) => {
+  cam.snapS = Math.max(5, Math.min(60, Math.round(s)))
+  try { localStorage.setItem('lcars_cam_snap', String(cam.snapS)) } catch { /* private mode */ }
+  // a snapshot already waiting moves to the new interval, counted from its picture
+  if (cam.status === 'snap' && cam.frameAt) {
+    window.clearTimeout(snapTimer)
+    const due = cam.frameAt + cam.snapS * 1000
+    cam.retryAt = due
+    snapTimer = window.setTimeout(() => (wanted() ? open() : stop()), Math.max(0, due - Date.now()))
+  }
+}
+
+export const setCamMode = (m: CamMode) => {
+  if (cam.mode === m) return
+  cam.mode = m
+  try { localStorage.setItem('lcars_cam_mode', m) } catch { /* private mode */ }
+  // to live: do not wait for the next snapshot; to snap: the next frame closes the stream
+  if (m === 'live' && cam.status === 'snap') {
+    window.clearTimeout(snapTimer)
+    open()
+  }
+}
 
 export const setCamEnabled = (on: boolean) => {
   cam.enabled = on
@@ -96,6 +125,7 @@ let attempt = 0
 let retryTimer = 0
 let graceTimer = 0
 let stallTimer = 0
+let snapTimer = 0
 let target = ''
 const oldUrls: string[] = []
 
@@ -130,6 +160,7 @@ const wanted = () => users > 0 && cam.enabled && !document.hidden
 const stop = () => {
   window.clearTimeout(graceTimer)
   window.clearTimeout(retryTimer)
+  window.clearTimeout(snapTimer)
   close()
   cam.status = 'off'
   cam.fps = 0
@@ -152,6 +183,15 @@ const publish = (jpeg: Uint8Array) => {
   cam.status = 'live'
   cam.error = ''
   attempt = 0
+  if (cam.mode === 'snap') {
+    // one picture is enough: let go of the camera until the next one is due
+    close()
+    cam.status = 'snap'
+    cam.retryAt = now + cam.snapS * 1000
+    window.clearTimeout(snapTimer)
+    snapTimer = window.setTimeout(() => (wanted() ? open() : stop()), cam.snapS * 1000)
+    return
+  }
   armStall()
 }
 
@@ -178,23 +218,19 @@ const fail = (why: string) => {
 
 const open = () => {
   window.clearTimeout(retryTimer)
+  window.clearTimeout(snapTimer)
   close()
   // a retry may fire after the last viewer left, the page hid or the camera was turned off
   if (!wanted()) {
     stop()
     return
   }
-  const dev = getCurrentDevice()
-  if (getPrinterConnectionMode() === 'cloud' || (dev && dev.connect === 'cloud' && dev.from !== 'local')) {
+  // the camera is on the LAN whatever carries status and control
+  const dev = lanTarget()
+  if (!dev) {
     clearFrame()
     target = ''
-    cam.status = 'cloud'
-    return
-  }
-  if (!dev?.ip || !dev.code) {
-    clearFrame()
-    target = ''
-    cam.status = 'nodevice'
+    cam.status = getCurrentDevice() ? 'cloud' : 'nodevice'
     return
   }
   const next = `${dev.ip}|${dev.code}`
@@ -227,14 +263,16 @@ const open = () => {
 const sync = () => {
   window.clearTimeout(graceTimer)
   if (wanted()) {
-    const dev = getCurrentDevice()
+    const dev = lanTarget()
     const key = dev ? `${dev.ip}|${dev.code}` : ''
-    if (!ws && cam.status !== 'retry') open()
-    else if (ws && key !== target) open()
+    if (!ws && cam.status !== 'retry' && cam.status !== 'snap') open()
+    // a new address or code (or none) also applies while waiting between snapshots or retries
+    else if (key !== target) open()
     return
   }
-  // turned off, hidden, or nothing open: stop at once
-  if (!cam.enabled || document.hidden || !ws) {
+  // turned off, hidden, or nothing open: stop at once (a snapshot wait gets the grace too,
+  // so moving between two views does not take an extra frame)
+  if (!cam.enabled || document.hidden || (!ws && cam.status !== 'snap')) {
     stop()
     return
   }
