@@ -2,9 +2,9 @@
    .3mf over the FTPS tunnel in LAN mode. Cached per task id. */
 import { ref, watch } from 'vue'
 import { CloudClient, FTPSClient } from '@bambulab-p1screen/printer-api'
-import { CLOUD_BASE_URLS, client, createApiUrl, createFtpUrl, getPrinterConnectionMode } from '../printer'
-import { getCurrentDevice } from '../utils/device'
+import { CLOUD_BASE_URLS, client, createApiUrl, createFtpUrl, lanTarget } from '../printer'
 import { getCachedThumbnailUrl, setCachedThumbnailUrl } from '../utils/thumbnail'
+import { parsePlateFilaments } from './amsMap'
 import { getCloudUser } from '../utils/user'
 import { usePrinterStore } from '../stores/printer'
 
@@ -36,12 +36,13 @@ export const read3mf = async (data: Uint8Array) => {
   const info = files['Metadata/slice_info.config']
   const plate = info ? parsePlateIndex(new TextDecoder().decode(info)) : undefined
   const png = files[`Metadata/plate_${plate ?? '1'}.png`]
-  return { plate: plate ?? '1', thumbnail: png ? bytesToDataUrl(png) : '' }
+  const filaments = info ? parsePlateFilaments(new TextDecoder().decode(info), plate) : []
+  return { plate: plate ?? '1', thumbnail: png ? bytesToDataUrl(png) : '', filaments }
 }
 
 export const openFtp = async () => {
-  const dev = getCurrentDevice()
-  if (!dev?.ip || !dev.code) throw new Error('no local device')
+  const dev = lanTarget()
+  if (!dev) throw new Error('no local device')
   const ftp = new FTPSClient()
   try {
     await ftp.connect(createFtpUrl(dev.ip))
@@ -100,7 +101,7 @@ export const useTaskThumbnail = () => {
     state.value = 'loading'
     try {
       let value = ''
-      if (getPrinterConnectionMode() === 'cloud') {
+      if (!lanTarget()) {
         const user = getCloudUser()
         if (!user) throw new Error('no cloud user')
         const cloud = new CloudClient({ baseUrl: createApiUrl(CLOUD_BASE_URLS[user.region]) })

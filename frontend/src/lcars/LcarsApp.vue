@@ -67,7 +67,11 @@
       <template v-if="ui.notice">{{ ui.notice }}</template>
       <template v-else><span class="c-g5">{{ linkLine }}</span></template>
     </div>
-    <div ref="titleEl" class="title">
+    <!-- the link is down: a relink control slides in over the section title -->
+    <button v-if="showRelink" type="button" class="pill relink" @click="relink">
+      <span class="pill-t">{{ t('x.relink') }}</span>
+    </button>
+    <div v-show="!showRelink" ref="titleEl" class="title">
       <div class="title-main">{{ t(`x.sec_${section.key}`) }}</div>
       <div class="title-sub"><template v-if="!same(t(`x.fn_${section.key}`), t(`x.sec_${section.key}`))">{{ t(`x.fn_${section.key}`) }} </template><span class="title-code">{{ lang === 'zh' ? section.code.replace(/^[A-Z]+ /, '') : section.code }}</span></div>
     </div>
@@ -108,7 +112,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { getPrinterConnectionMode, client } from '../printer'
+import { autoLink, client, connectPrinter, getPrinterConnectionMode, lanTarget } from '../printer'
 import { bindPrinterClient, unbindPrinterClient } from '../stores/printer'
 import { getCurrentDevice } from '../utils/device'
 import { flick, pulse } from './ambient'
@@ -116,13 +120,15 @@ import { elbow } from './geom'
 import { loadHms } from './hms'
 import { stage, useStageFit } from './stage'
 import { usePlant } from './systems'
-import { ui } from './ui'
+import { notice, ui } from './ui'
+import { ensureGcode } from './gcode'
+import { isNight } from './night'
 import { startChamber } from './chamber'
 import { initKiosk, kiosk, setLight, wake, wakeScreen, type Light } from './kiosk'
 import { AFTER_JOB_MS, STANDBY_AFTER_MS, enterStandby, exitStandby, standby } from './standby'
 import { dropGcode } from './gcode'
 import { initUpdates } from './update'
-import { alertStart, alertStop, initSound, play, voice } from './sfx'
+import { alertStart, alertStop, initSound, play, quiet, voice } from './sfx'
 import { GcodeState } from '@bambulab-p1screen/printer-api'
 import { same } from './i18n'
 import LBtn from './components/LBtn.vue'
@@ -199,13 +205,54 @@ const deviceName = computed(() => {
 const linkLine = computed(() => {
   // read the reactive link first: the stored device list itself is not reactive
   const online = connected.value
+  // the countdown ticks even before a device is chosen, so adding one shows its link state
+  if (!online) void clock.value
   void device.value
   const dev = getCurrentDevice()
   if (!dev) return t('x.no_link')
-  if (!online) return `${dev.name} • ${t('x.link_down')}`
-  const mode = t(getPrinterConnectionMode() === 'cloud' ? 'x.link_cloud' : 'x.link_local')
+  if (!online) return `${dev.name} • ${linkTrouble()}`
+  const mode = t(getPrinterConnectionMode() === 'cloud' ? 'x.link_cloud' : 'x.link_local') + (autoLink() ? ` (${t('x.link_auto')})` : '')
   return `${dev.name} • ${mode} • ${client.getWifiSignalPercentage()}%`
 })
+/* Why the link is down and when it tries again; read once a second through the clock. */
+const linkTrouble = () => {
+  void clock.value
+  const parts = [t('x.link_down')]
+  if (client.lastError?.message?.includes('Not authorized')) parts.push(t('x.link_auth'))
+  else if (client.failures >= 2) parts.push(t('x.link_mute'))
+  const left = client.retryAt ? Math.max(0, Math.ceil((client.retryAt - Date.now()) / 1000)) : 0
+  parts.push(left ? t('x.link_retry', { s: left }) : t('x.link_trying'))
+  return parts.join(' • ')
+}
+/* The job's file is read once per job (LAN only): G-code lines for the standby screen and the
+   plate's objects for skipping. */
+const jobKey = computed(() => {
+  const p = device.value
+  if (!p || !active.value || (!p.task_id && !p.subtask_name && !p.gcode_file)) return ''
+  return `${p.task_id || ''}|${p.subtask_name || ''}|${p.gcode_file || ''}`
+})
+// also asked again when the LAN becomes usable mid-job (auto link back on the LAN, LAN media on)
+const gcodeWant = computed(() => (jobKey.value ? `${jobKey.value}#${lanTarget() ? 'lan' : ''}` : ''))
+watch(gcodeWant, (w) => {
+  if (w) ensureGcode(jobKey.value, device.value?.subtask_name, device.value?.gcode_file)
+}, { immediate: true })
+
+/* Relink control, shown once the link has been down for a few seconds (not during a normal connect) */
+const downSince = ref(0)
+watch(connected, (on) => { downSince.value = on ? 0 : Date.now() }, { immediate: true })
+const showRelink = computed(() => {
+  void clock.value
+  void device.value
+  return !!getCurrentDevice() && !connected.value && downSince.value > 0 && Date.now() - downSince.value > 4000
+})
+const relink = () => {
+  const dev = getCurrentDevice()
+  if (!dev) return
+  if (client.mqttClient && !client.mqttClient.connected && client.connectOptions?.serial === dev.serial) client.retryNow()
+  else connectPrinter(dev)
+  downSince.value = Date.now()
+  notice(t('x.linking'), 'c')
+}
 const stemCode = computed(() => `${String(device.value?.task_id ?? '0000').slice(-4)}`)
 
 /* ---- clock: real time, the only 1 Hz element in the shell ---- */
@@ -216,6 +263,14 @@ const tickClock = () => {
   clock.value = `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`
 }
 let clockTimer = 0
+// a device added or switched to starts its own grace: a normal first connect shows no relink
+let relinkSerial = getCurrentDevice()?.serial ?? ''
+watch(clock, () => {
+  const s = getCurrentDevice()?.serial ?? ''
+  if (s === relinkSerial) return
+  relinkSerial = s
+  if (!connected.value) downSince.value = Date.now()
+})
 
 /* ---- title swaps with a glitch blink ---- */
 const titleEl = ref<HTMLElement | null>(null)
@@ -296,12 +351,14 @@ const autoTick = () => {
   const idle = Date.now() - lastInput
   // the standby screen: a few minutes untouched, nothing open, no fresh alert, and not in
   // the first minutes after a job ended (the console stays up to show how it ended)
-  const afterJob = jobEndAt > 0 && Date.now() - jobEndAt < AFTER_JOB_MS
+  // at night a finished job does not hold the screen up
+  const afterJob = jobEndAt > 0 && Date.now() - jobEndAt < AFTER_JOB_MS && !isNight()
   if (standby.enabled && !standby.on && idle > STANDBY_AFTER_MS && !booting.value && !freshAlert.value && !afterJob
     && !ui.keypad.show && !ui.confirm.show && !route.path.startsWith('/setting/device')) {
     enterStandby()
   }
-  if (Date.now() - BOOT_AT > REFRESH_AFTER_MS && idle > 600000 && route.path === '/home' && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red') {
+  // never mid-job: a reload drops the job's G-code and relinks to the printer
+  if (Date.now() - BOOT_AT > REFRESH_AFTER_MS && idle > 600000 && !active.value && route.path === '/home' && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red') {
     window.location.reload()
     return
   }
@@ -323,7 +380,8 @@ watch(condition, (c, prev) => {
 }, { immediate: true })
 const freshAlert = computed(() => {
   void now.value
-  return condition.value === 'red' || (condition.value === 'yellow' && Date.now() - yellowSince < AFTER_JOB_MS)
+  // at night only a red alert wakes the console
+  return condition.value === 'red' || (condition.value === 'yellow' && Date.now() - yellowSince < AFTER_JOB_MS && !isNight())
 })
 watch(freshAlert, (on) => {
   if (!on) return
@@ -341,21 +399,27 @@ watch(active, (on, was) => {
   }
   if (!on && was) {
     jobEndAt = Date.now()
-    exitStandby()
-    wakeScreen()
+    if (!isNight()) {
+      exitStandby()
+      wakeScreen()
+    }
     // the job's G-code is held in memory only while it can still be shown
     dropTimer = window.setTimeout(dropGcode, AFTER_JOB_MS * 3)
   }
 })
 const lightPolicy = computed<Light>(() => {
   const t1 = now.value
-  if (booting.value || freshAlert.value || t1 - lastTouch.value < 300000) return 'full'
-  const afterJob = jobEndAt && t1 - jobEndAt < AFTER_JOB_MS
+  const dark = isNight(new Date(t1))
+  if (condition.value === 'red') return 'full'
+  if (booting.value || freshAlert.value || t1 - lastTouch.value < 300000) return dark ? 'night' : 'full'
+  const afterJob = jobEndAt && t1 - jobEndAt < AFTER_JOB_MS && !dark
   if (standby.on) {
     if (active.value || afterJob) return 'standby'
     return standby.sleepIdle ? 'sleep' : 'ambient'
   }
-  return active.value || afterJob ? 'print' : 'ambient'
+  // at night a running print sits at the standby level instead of half brightness
+  if (active.value || afterJob) return dark ? 'standby' : 'print'
+  return 'ambient'
 })
 watch(lightPolicy, l => setLight(l))
 
@@ -366,7 +430,8 @@ const alertSounding = computed(() => condition.value === 'red' && ui.ackedError 
 watch(alertSounding, (on) => { if (on) alertStart(); else alertStop() })
 watch(condition, (c, prev) => {
   if (c === 'yellow' && prev === 'green') play('caution')
-  if (c === 'red' || c === 'yellow') wake()
+  // at night only a red alert wakes the screen
+  if (c === 'red' || (c === 'yellow' && !isNight())) wake()
 })
 watch(() => device.value?.gcode_state, (s, prev) => {
   if (!prev || s === prev) return
@@ -413,6 +478,7 @@ onMounted(() => {
   initSound(() => autoActive.value || Date.now() - lastInput > 60000)
   // backlight stays up while the printer works, an alert is up or someone was here lately
   initKiosk(() => lightPolicy.value)
+  quiet.active = () => isNight()
   // a hand waved over the proximity sensor counts as a touch (Android shell)
   ;(window as any).__P1ScreenOnWave = () => touched()
   initUpdates(() => Date.now() - lastInput > 600000 && !ui.keypad.show && !ui.confirm.show && condition.value !== 'red')
@@ -470,6 +536,8 @@ onBeforeUnmount(() => {
   outline: none;
 }
 .pill:active { opacity: .72; }
+.relink { right: 6px; top: 7px; height: 26px; padding: 0 16px; border-radius: 13px; font-size: 15px; line-height: 26px; background: var(--o4); animation: relinkIn .3s steps(4) both, aPill 3s steps(1) .3s infinite; }
+@keyframes relinkIn { from { transform: translateX(60px); opacity: 0 } to { transform: none; opacity: 1 } }
 .cond { left: 104px; min-width: 124px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .cond-none { background: var(--g3); }
 .cond-green { background: var(--c3); }

@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import LcarsApp from './lcars/LcarsApp.vue'
 import { i18n } from './i18n'
-import { client, connectPrinter } from './printer'
+import { client, connectPrinter, disconnectPrinter } from './printer'
 import { lcarsRoutes } from './lcars/routes'
 import { lcarsMessages } from './lcars/i18n'
 import { vAmb, vTick } from './lcars/ambient'
@@ -51,7 +51,7 @@ window.__P1ScreenOnAppLifecycle = (state: AppLifecycleState) => {
     }
     backgroundDisconnectTimer = window.setTimeout(() => {
       console.info('[AppLifecycle] background: disconnect printer')
-      client.disconnect()
+      disconnectPrinter()
       backgroundDisconnectTimer = undefined
     }, BACKGROUND_DISCONNECT_DELAY_MS)
     return
@@ -61,9 +61,12 @@ window.__P1ScreenOnAppLifecycle = (state: AppLifecycleState) => {
     window.clearTimeout(backgroundDisconnectTimer)
     backgroundDisconnectTimer = undefined
   }
-  if (!client.mqttClient?.connected) {
+  // a link still being retried (or the auto link on the cloud) is kept: only try again now
+  if (!client.mqttClient) {
     console.info('[AppLifecycle] foreground: connect printer')
     connectCurrentPrinter()
+  } else if (!client.mqttClient.connected) {
+    client.retryNow()
   }
 }
 

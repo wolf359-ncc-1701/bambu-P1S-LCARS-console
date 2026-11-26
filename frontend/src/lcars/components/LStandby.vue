@@ -77,7 +77,7 @@ import { usePlantModel } from '../plantModel'
 import { stage } from '../stage'
 import { holoSupported } from '../holo/gl'
 import { BUILD, type Cam } from '../plant3d'
-import { client, getPrinterConnectionMode } from '../../printer'
+import { client, lanTarget } from '../../printer'
 import { getCurrentDevice } from '../../utils/device'
 import { ensureGcode, gcode, gcodeIndex, layerSpan, readLines } from '../gcode'
 import LHoloPrinter from './LHoloPrinter.vue'
@@ -208,7 +208,7 @@ const codeHead = computed(() => {
   return t('x.sb_gcode')
 })
 const codeStatus = computed(() => {
-  if (getPrinterConnectionMode() === 'cloud' || gcode.status === 'cloud') return t('x.sb_gc_cloud')
+  if (!lanTarget() || gcode.status === 'cloud') return t('x.sb_gc_cloud')
   switch (gcode.status) {
     case 'loading': return t('x.sb_gc_loading')
     case 'indexing': return t('x.sb_gc_indexing', { p: Math.round(gcode.progress * 100) })
@@ -229,8 +229,14 @@ const loop = (ts: number) => {
   // the head only needs to move at the standby frame rate (~12 fps)
   if (ts - lastTrace < 80) return
   lastTrace = ts
-  if (holo.value && printing.value) trace(ts, tool, sbCam.value)
+  trace(ts, tool, sbCam.value)
 }
+// the frame loop runs only while there is a print head to move
+const traceOn = computed(() => holo.value && printing.value)
+watch(traceOn, (on) => {
+  window.cancelAnimationFrame(raf)
+  raf = on ? window.requestAnimationFrame(loop) : 0
+})
 const freshen = () => {
   if (document.hidden) return
   now.value = new Date()
@@ -251,7 +257,7 @@ onMounted(() => {
   fast = window.setInterval(freshen, 2000)
   document.addEventListener('visibilitychange', freshen)
   slow = window.setInterval(() => { driftIdx.value++ }, 90000)
-  raf = window.requestAnimationFrame(loop)
+  if (traceOn.value) raf = window.requestAnimationFrame(loop)
   refreshCode()
 })
 onBeforeUnmount(() => {

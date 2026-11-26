@@ -85,7 +85,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { showToast } from 'vant'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { client, connectPrinter } from '../../printer'
+import { connectPrinter, disconnectPrinter } from '../../printer'
 import { ROUTE_NAME } from '../../router/names'
 import {
   addDevice,
@@ -121,11 +121,13 @@ const codeInputRef = ref<HTMLElement | null>(null)
 const canSave = computed(() => Boolean(name.value && ip.value && serial.value && code.value))
 const connectionModeLabel = computed(() => {
   if (!isCloudDevice.value || connectMode.value === 'local') return t('device_source_local')
+  if (connectMode.value === 'auto') return t('device_source_auto')
   return t('device_source_cloud')
 })
 const connectionModeActions = computed(() => [
   { name: t('device_source_cloud'), value: 'cloud' as const },
   { name: t('device_source_local'), value: 'local' as const },
+  { name: t('device_source_auto'), value: 'auto' as const },
 ])
 
 onBeforeRouteLeave((to) => {
@@ -138,6 +140,7 @@ const handleSave = () => {
   if (!canSave.value) return
   const device = {
     connect: connectMode.value,
+    lanMedia: stored?.lanMedia,
     from: source.value,
     name: name.value,
     ip: ip.value,
@@ -169,7 +172,7 @@ const handleDelete = () => {
   removeDevice(serial.value)
   const current = getCurrentDevice()
   if (!current) {
-    client.disconnect()
+    disconnectPrinter()
   } else {
     connectPrinter(current)
   }

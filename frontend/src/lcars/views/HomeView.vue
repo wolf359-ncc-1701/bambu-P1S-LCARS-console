@@ -133,7 +133,7 @@
       <LBtn v-if="!isPaused" class="ctl c1 stg" data-o="4" :label="t('x.suspend')" tone="y" shape="pr" dot :disabled="!showPrintActions" @press="client.setPause()" />
       <LBtn v-else class="ctl c1 stg" data-o="4" :label="t('x.resume')" tone="c3" shape="pr" dot :disabled="!showPrintActions" @press="client.setResume()" />
       <LBtn class="ctl c2 stg" data-o="4" :label="t('x.abort')" tone="r" shape="pr" dot :disabled="!showPrintActions" @press="abort" />
-      <LBtn class="ctl c3 stg" data-o="4" :label="t('x.skip')" tone="g1" shape="pr" disabled />
+      <LBtn class="ctl c3 stg" data-o="4" :label="t('x.skip')" :tone="canSkip ? 'g3' : 'g1'" shape="pr" :disabled="!canSkip" @press="skipOpen = true" />
     </template>
 
     <template v-else>
@@ -166,6 +166,7 @@
     </div>
 
     <!-- the viewscreen enlarged over the whole page; any tap folds it back -->
+    <LSkip v-if="skipOpen && canSkip" :w="532 + stage.wing" @close="skipOpen = false" />
     <LViewscreen v-if="camBig" class="cam-big" big :w="532 + stage.wing" :h="268" :paused="standby.on" @press="camBig = false" />
 
     <!-- autopilot event: a level-3 diagnostic of real system states -->
@@ -206,7 +207,9 @@ import { stage } from '../stage'
 import { FALLBACK_ROWS, usePlantModel } from '../plantModel'
 import { cam } from '../camera'
 import { standby } from '../standby'
-import { getPrinterConnectionMode } from '../../printer'
+import { gcode } from '../gcode'
+import LSkip from '../components/LSkip.vue'
+import { lanTarget } from '../../printer'
 import LViewscreen from '../components/LViewscreen.vue'
 
 const { t, locale } = useI18n()
@@ -269,9 +272,18 @@ const holoTrace = (now: number) => {
 
 /* ---- the camera takes the hologram's place in LAN mode ---- */
 const camBig = ref(false)
+
+/* ---- skip objects: needs the plate's object list from the job file, and two or more left ---- */
+const skipOpen = ref(false)
+const canSkip = computed(() => {
+  if (!showPrintActions.value) return false
+  const gone = new Set(device.value?.s_obj ?? [])
+  return gcode.objects.filter(o => !gone.has(o.id)).length >= 2
+})
+watch(canSkip, (on) => { if (!on) skipOpen.value = false })
 const showCam = computed(() => {
-  void device.value // re-read the link mode with each report
-  return cam.enabled && getPrinterConnectionMode() === 'local'
+  void device.value // re-read the link with each report
+  return cam.enabled && connected.value && !!lanTarget()
 })
 watch(showCam, (on) => { if (!on) camBig.value = false })
 
@@ -388,7 +400,8 @@ const park = () => {
   bead.value?.setAttribute('width', '0')
 }
 // the loop pauses while the deposition view covers the cutaway
-watch(() => running.value && !zoomOn.value, (on) => {
+// the printer drawing animates only while it is on screen: not under the camera or the standby screen
+watch(() => running.value && !zoomOn.value && !showCam.value && !standby.on, (on) => {
   window.cancelAnimationFrame(raf)
   raf = 0
   if (on) raf = window.requestAnimationFrame(loop)

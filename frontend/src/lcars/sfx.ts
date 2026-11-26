@@ -117,8 +117,12 @@ export const voice = { allowed: () => true }
 /* Tactile cues must land with the touch or not at all; event cues may arrive late. */
 const TACTILE = new Set<string>(['press', 'nav', 'toggleOn', 'toggleOff', 'key', 'set', 'cancel', 'commit', 'deny', 'confirm', 'blip'])
 
+/* night mode: event cues stay silent, touch feedback still plays */
+export const quiet = { active: () => false }
+
 export const play = (name: CueName, opts: { gain?: number, rate?: number } = {}) => {
   if (!can()) return
+  if (quiet.active() && !TACTILE.has(name) && name !== 'alertOn') return
   if (name.startsWith('voice:') && !voice.allowed()) return
   const cue: Cue = CUES[name]
   const now = Date.now()

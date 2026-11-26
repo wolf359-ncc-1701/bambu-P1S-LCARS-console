@@ -195,6 +195,9 @@ const dropGroup = (g: CamGroup, reason: string) => {
   for (const s of g.subs) s.close()
 }
 
+// about two frames of 720p JPEG; beyond that a slow link would only show older and older pictures
+const CAM_BACKLOG = 256 * 1024
+
 const openGroup = (key: string, host: string, port: number, auth: Buffer): CamGroup => {
   const up = tls.connect({ host, port, rejectUnauthorized: false })
   const g: CamGroup = { key, up, subs: new Set(), last: null }
@@ -225,7 +228,8 @@ const openGroup = (key: string, host: string, port: number, auth: Buffer): CamGr
       g.last = Buffer.from(frame)
       armStall()
       for (const s of g.subs) {
-        if (s.readyState === s.OPEN && s.bufferedAmount < 8 * 1024 * 1024) s.send(g.last, { binary: true })
+        // latest frame only: a viewer still sending earlier frames skips this one instead of queueing it
+        if (s.readyState === s.OPEN && s.bufferedAmount < CAM_BACKLOG) s.send(g.last, { binary: true })
       }
     }
   })
@@ -252,7 +256,8 @@ const joinCamera = (socket: WsClient, host: string, port: number, remote: string
     if (g.last) socket.send(g.last, { binary: true })
     const leave = () => {
       if (!g.subs.delete(socket)) return
-      if (!g.subs.size) g.idle = setTimeout(() => dropGroup(g, 'no viewers'), 5000)
+      // let go of the printer's camera soon: snapshot mode relies on the slot coming free
+      if (!g.subs.size) g.idle = setTimeout(() => dropGroup(g, 'no viewers'), 1000)
     }
     socket.on('close', leave)
     socket.on('error', leave)

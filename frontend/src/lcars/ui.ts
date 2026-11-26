@@ -20,6 +20,7 @@ type KeypadState = {
   title: string
   sub: string
   value: string
+  fresh: boolean // nothing typed yet: the next key replaces the value
   min: number
   max: number
   unit: string
@@ -33,7 +34,7 @@ export const ui = reactive({
   noticeTone: 'c' as 'c' | 'o' | 'r',
   noticeSeq: 0,
   confirm: { show: false, title: '', body: '', ok: '', cancel: '', tone: 'o' } as ConfirmState,
-  keypad: { show: false, title: '', sub: '', value: '', min: 0, max: 300, unit: '°C', maxLen: 3, presets: [] } as KeypadState,
+  keypad: { show: false, title: '', sub: '', value: '', fresh: false, min: 0, max: 300, unit: '°C', maxLen: 3, presets: [] } as KeypadState,
   ackedError: 0,
   // autopilot: set by the shell after two minutes without input
   autoActive: false,
@@ -71,6 +72,8 @@ export const keypad = (opts: { title: string, sub: string, value?: number, min: 
       title: opts.title,
       sub: opts.sub,
       value: opts.value !== undefined ? String(Math.round(opts.value)) : '',
+      // the current value is shown, and the first key typed replaces it
+      fresh: true,
       min: opts.min,
       max: opts.max,
       unit: opts.unit ?? '°C',

@@ -325,10 +325,19 @@ const handlePrintCommand = (params) => {
         publishReport({ print: { command, sequence_id: seq, result: 'fail', reason: 'printer busy' } })
         return
       }
-      log(`project_file: url=${params.url} plate=${params.param} use_ams=${params.use_ams} bed_leveling=${params.bed_leveling}`)
+      log(`project_file: url=${params.url} plate=${params.param} use_ams=${params.use_ams} ams_mapping=${JSON.stringify(params.ams_mapping)} bed_leveling=${params.bed_leveling}`)
       startJob({ name: String(params.subtask_name || params.file || 'project') })
       reply('print', command, seq)
       break
+    case 'skip_objects': {
+      // 跳过对象：记下要跳过的标签 id，随状态上报 s_obj
+      const ids = Array.isArray(params.obj_list) ? params.obj_list.map(Number).filter(Number.isInteger) : []
+      state.s_obj = [...new Set([...(state.s_obj ?? []), ...ids])]
+      log(`skip_objects: ${JSON.stringify(ids)} -> s_obj=${JSON.stringify(state.s_obj)}`)
+      reply('print', command, seq, { obj_list: ids })
+      pushStatus()
+      break
+    }
     default:
       // ams_get_rfid 等无需模拟副作用的指令
       reply('print', command, seq)
@@ -369,6 +378,8 @@ aedes.on('publish', (packet, client) => {
 const startJob = ({ name = 'Benchy_sim', duration = 300, layers = 120, calibration = false, lineNumbers = true } = {}) => {
   Object.assign(job, { active: true, elapsed: 0, duration, totalLayers: layers, calibration, lineNumbers })
   delete state.mc_print_line_number
+  // a new job starts with nothing skipped; sent as [] so a client keeping the last value clears it
+  state.s_obj = []
   const taskId = String(Date.now()).slice(-9)
   Object.assign(state, {
     gcode_state: 'PREPARE',
@@ -517,9 +528,20 @@ const gcodeFor = (layers) => {
 }
 
 // ---------- FTPS（隐式 TLS，只读虚拟文件系统） ----------
+// 盘上四个对象（plate_1.json 的 bbox_objects），用到两种耗材（slice_info.config）
+const PLATE_OBJECTS = [
+  { id: 101, name: 'Benchy', bbox: [40, 150, 95, 205] },
+  { id: 102, name: 'Clip_1', bbox: [140, 160, 170, 190] },
+  { id: 103, name: 'Clip_2', bbox: [180, 160, 210, 190] },
+  { id: 104, name: 'Cube', bbox: [100, 50, 140, 90] },
+]
 const build3mf = (layers = 120) => zipSync({
   'Metadata/slice_info.config': Buffer.from(
-    '<?xml version="1.0" encoding="UTF-8"?>\n<config><plate><metadata key="index" value="1"/></plate></config>'),
+    '<?xml version="1.0" encoding="UTF-8"?>\n<config><plate><metadata key="index" value="1"/>'
+    + '<filament id="1" tray_info_idx="GFA00" type="PLA" color="#F2F2F2" used_m="3.1" used_g="9.3"/>'
+    + '<filament id="3" tray_info_idx="GFG00" type="PETG" color="#1F6FD0" used_m="1.0" used_g="3.1"/>'
+    + '</plate></config>'),
+  'Metadata/plate_1.json': Buffer.from(JSON.stringify({ bbox_objects: PLATE_OBJECTS, version: 2 })),
   'Metadata/plate_1.png': fs.readFileSync(path.join(DIR, '../frontend/src/assets/images/benchy.png')),
   'Metadata/plate_1.gcode': Buffer.from(gcodeFor(layers).text),
 })
