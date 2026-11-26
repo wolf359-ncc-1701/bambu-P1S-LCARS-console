@@ -21,8 +21,9 @@
 <script setup lang="ts">
 /* A block button. One language at a time: `label` is the main word, `sub` an optional
    smaller line in the same language. */
-import { ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { hit } from '../ambient'
+import { applyOptical, trackOptical } from '../optical'
 import { play, type CueName } from '../sfx'
 
 const props = withDefaults(defineProps<{
@@ -52,6 +53,20 @@ const emit = defineEmits<{ (e: 'press'): void }>()
 const el = ref<HTMLElement | null>(null)
 const txt = ref<HTMLElement | null>(null)
 
+// centred labels (capsules and .ctr buttons) are centred by their blurred ink mass, not
+// by their text box (see optical.ts)
+const optical = () => {
+  const b = el.value
+  if (b && (props.shape === 'pp' || b.classList.contains('ctr'))) applyOptical(txt.value)
+}
+let untrack: (() => void) | null = null
+onMounted(() => {
+  optical()
+  untrack = trackOptical(optical)
+})
+onBeforeUnmount(() => untrack?.())
+watch(() => [props.label, props.sub, props.shape], () => nextTick(optical))
+
 // a press by finger already flashed on pointerdown (the shell does that for every control);
 // a press by keyboard (a click with no pointer: detail 0) flashes here
 const onClick = (e: MouseEvent) => {
@@ -65,6 +80,7 @@ const onClick = (e: MouseEvent) => {
 <style scoped>
 .lb-sub {
   display: block;
+  text-indent: 0;
   margin-top: 1px;
   font-size: 11px;
   line-height: 12px;

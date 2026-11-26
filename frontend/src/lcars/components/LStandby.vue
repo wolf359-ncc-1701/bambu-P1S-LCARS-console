@@ -101,11 +101,11 @@ const tool = reactive({ x: BUILD / 2, y: BUILD / 2 })
 const two = (n: number) => String(n).padStart(2, '0')
 const now = ref(new Date())
 const clock = computed(() => `${two(now.value.getHours())}:${two(now.value.getMinutes())}`)
-const date = computed(() => now.value.toLocaleDateString(locale.value.startsWith('zh') ? 'zh-CN' : 'en-GB', { weekday: 'short', month: 'short', day: 'numeric' }))
+const date = computed(() => now.value.toLocaleDateString(locale.value === 'zh-Hant' ? 'zh-TW' : locale.value === 'zh' ? 'zh-CN' : 'en-GB', { weekday: 'short', month: 'short', day: 'numeric' }))
 const remaining = computed(() => {
   const m = device.value?.mc_remaining_time ?? 0
   const h = Math.floor(m / 60), mm = m % 60
-  if (locale.value.startsWith('zh')) return h ? `${h}时${two(mm)}分` : `${mm}分`
+  if (locale.value.startsWith('zh')) return h ? `${h}${t('x.u_hr')}${two(mm)}${t('x.u_min')}` : `${mm}${t('x.u_min')}`
   return h ? `${h}H${two(mm)}M` : `${mm}M`
 })
 const eta = computed(() => {

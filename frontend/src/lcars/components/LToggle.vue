@@ -10,15 +10,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { hit } from '../ambient'
+import { applyOptical, trackOptical } from '../optical'
 import { play } from '../sfx'
 
 const props = defineProps<{ on: boolean, label: string, sub?: string, disabled?: boolean, compact?: boolean }>()
 const emit = defineEmits<{ (e: 'toggle', value: boolean): void }>()
 const cap = ref<HTMLElement | null>(null)
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+// the state word sits centred in the capsule end: centre it by its blurred ink mass
+const optical = () => applyOptical(cap.value)
+let untrack: (() => void) | null = null
+onMounted(() => {
+  optical()
+  untrack = trackOptical(optical)
+})
+onBeforeUnmount(() => untrack?.())
+watch(() => [props.on, locale.value], () => nextTick(optical))
 
 const press = (e: Event) => {
   if (props.disabled) return

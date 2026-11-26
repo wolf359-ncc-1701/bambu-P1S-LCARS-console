@@ -1,19 +1,23 @@
 import { createI18n } from 'vue-i18n'
+import { zhHant } from './zhHant'
 
-export type AppLocale = 'zh' | 'en'
+export type AppLocale = 'zh' | 'zh-Hant' | 'en'
 export type LocalePreference = 'auto' | AppLocale
 
 const LOCALE_STORAGE_KEY = 'app_locale'
 
-const detectLocale = (): AppLocale => {
+/* Taiwan, Hong Kong, Macau and any zh-Hant tag read Traditional; every other zh reads Simplified. */
+export const detectLocale = (): AppLocale => {
   if (typeof navigator === 'undefined') return 'zh'
-  return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+  const l = navigator.language.toLowerCase()
+  if (!l.startsWith('zh')) return 'en'
+  return /^zh-(tw|hk|mo|hant)/.test(l) ? 'zh-Hant' : 'zh'
 }
 
 export const getLocalePreference = (): LocalePreference => {
   try {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY)
-    if (stored === 'zh' || stored === 'en' || stored === 'auto') return stored
+    if (stored === 'zh' || stored === 'zh-Hant' || stored === 'en' || stored === 'auto') return stored
   } catch {}
   // the console opens in English until a language is chosen in Settings
   return 'en'
@@ -440,5 +444,5 @@ export const i18n = createI18n({
   legacy: false,
   locale: resolveLocale(),
   fallbackLocale: 'en',
-  messages,
+  messages: { ...messages, 'zh-Hant': zhHant },
 })

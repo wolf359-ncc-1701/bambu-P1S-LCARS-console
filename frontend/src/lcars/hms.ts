@@ -48,6 +48,10 @@ export const errorCode = (printError: number, readable = true) => {
 
 const lang = (locale: string) => (locale.startsWith('zh') ? 'zh-cn' : 'en')
 
+/* The HMS tables are Simplified only: in Traditional mode their text is marked as Simplified,
+   so it is drawn in the Simplified font (lang attribute for the element showing it). */
+export const hmsLang = (locale: string) => (locale === 'zh-Hant' ? 'zh-Hans' : undefined)
+
 export const hmsText = (m: DeviceHMS, locale: string) =>
   hmsTables.value?.hms[lang(locale)]?.find(i => i.ecode === hmsCode(m, false))?.intro ?? ''
 
