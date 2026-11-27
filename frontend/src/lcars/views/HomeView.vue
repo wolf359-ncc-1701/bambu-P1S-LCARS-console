@@ -100,7 +100,7 @@
     </svg>
 
     <!-- the G-code being run, in a thin elbow under the picture (or under the hologram) -->
-    <LCodeElbow v-if="L.codeH >= 30" class="code stg" data-o="3" :style="{ top: `${L.codeY}px` }" :w="L.lw" :h="L.codeH" :paused="standby.on || camBig || !running" />
+    <LCodeElbow v-if="L.codeH >= 30" class="code stg" data-o="3" :style="{ top: `${L.codeY}px` }" :w="L.lw" :h="L.codeH" :paused="standby.on || camBig || !running" :swipe="showCam" @swipe="codeSwipe" />
 
     <!-- magnified deposition: the nozzle zone grows into a cross-section of the layers -->
     <div v-if="zoomMounted" ref="zoomEl" class="zoom" :class="{ on: zoomOn }">
@@ -345,8 +345,11 @@ const camBig = ref(false)
 const camNow = ref(Date.now())
 const camShownAt = ref(Date.now())
 const camOpenUntil = ref(0)
+// folded by hand (a swipe up on the code strip's top bar): stays folded until opened again
+const camHandFold = ref(false)
 const camFolded = computed(() => {
   if (!showCam.value) return false
+  if (camHandFold.value) return true
   const now = camNow.value
   if (now < camOpenUntil.value) return false
   const wait = cam.waitS * 1000
@@ -354,13 +357,22 @@ const camFolded = computed(() => {
   if (!cam.url || !cam.frameAt) return true
   return now - cam.frameAt > wait + (cam.mode === 'snap' ? cam.snapS * 1000 : 0)
 })
-const camPress = () => {
-  if (!camFolded.value) {
-    camBig.value = true
-    return
-  }
+const camOpen = () => {
+  camHandFold.value = false
   camOpenUntil.value = Date.now() + cam.waitS * 1000
   camShownAt.value = Date.now()
+}
+const camPress = () => {
+  if (camFolded.value) camOpen()
+  else camBig.value = true
+}
+const codeSwipe = (dir: 'up' | 'down') => {
+  if (dir === 'up') {
+    if (camFolded.value) return
+    camHandFold.value = true
+  } else if (camFolded.value) camOpen()
+  else return
+  play('key')
 }
 
 /* ---- skip objects: needs the plate's object list from the job file, and two or more left ---- */
