@@ -3,7 +3,7 @@
        corner rulers and edge ticks over it, a slow scan line, and the link data in thin
        strips above and below. Everything drawn over the picture is hairline and dim, so the
        print stays the brightest thing. -->
-  <div class="vs" :class="{ live: hasPicture, top }" :style="{ width: `${w}px`, height: `${h}px` }" role="button" tabindex="0" :aria-label="t('x.cam_title')" @click="emit('press')" @keydown.enter.prevent="emit('press')">
+  <div class="vs" :class="{ live: hasPicture, top, folded }" :style="{ width: `${w}px`, height: `${h}px` }" role="button" tabindex="0" :aria-label="t('x.cam_title')" @click="emit('press')" @keydown.enter.prevent="emit('press')">
     <div class="vs-head">
       <span class="vs-t">{{ t('x.cam_title') }}</span>
       <span class="vs-ks">
@@ -14,7 +14,7 @@
       </span>
     </div>
 
-    <div class="vs-pic" :style="picBox">
+    <div v-if="!folded" class="vs-pic" :style="picBox">
       <img v-if="hasPicture" :src="cam.url" alt="" draggable="false" @load="onLoad" />
       <div v-if="!hasPicture" class="vs-none">
         <div class="vs-none-t">{{ t('x.cam_none') }}</div>
@@ -38,7 +38,7 @@
       <div v-if="hasPicture" class="vs-age num" :class="{ old: ageS >= 6 }">T+{{ ageS.toFixed(1) }}</div>
     </div>
 
-    <div class="vs-foot num" :style="top ? { top: `${box.y + box.h}px`, bottom: 'auto' } : undefined">
+    <div v-if="!folded" class="vs-foot num" :style="top ? { top: `${box.y + box.h}px`, bottom: 'auto' } : undefined">
       <span>{{ res }}</span>
       <span>{{ cam.fps ? `${cam.fps.toFixed(2)} FPS` : '— FPS' }}</span>
       <span>#{{ String(cam.frames).padStart(4, '0') }}</span>
@@ -59,7 +59,9 @@ import { run } from '../ui'
 
 /* top: the picture sits right under the header, its strip of frame data right under it, and
    the box is only as tall as that (the home page puts the G-code strip below) */
-const props = withDefaults(defineProps<{ w: number, h: number, paused?: boolean, top?: boolean }>(), { paused: false, top: false })
+/* folded: only the header bar is shown (no picture for a while); the stream is still held, so
+   the first frame that comes in can open it again */
+const props = withDefaults(defineProps<{ w: number, h: number, paused?: boolean, top?: boolean, folded?: boolean }>(), { paused: false, top: false, folded: false })
 const emit = defineEmits<{ (e: 'press'): void }>()
 const { t } = useI18n()
 
@@ -185,6 +187,8 @@ onBeforeUnmount(() => {
 .st-o { background: var(--o4); }
 .st-g { background: var(--g3); }
 .vs-pic { position: absolute; overflow: hidden; background: #000; }
+.vs.folded .vs-head { border-bottom-color: var(--g2); }
+.vs.folded .vs-t::after { content: ' ▾'; color: var(--g4); }
 .vs-pic img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: fill; user-select: none; }
 .vs-ov { position: absolute; left: 0; top: 0; }
 .vs-scan {

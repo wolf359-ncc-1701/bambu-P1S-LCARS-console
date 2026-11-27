@@ -179,6 +179,12 @@
             <LSlider class="snap-s" :reach="4" :value="cam.snapS" :target="cam.snapS" :min="5" :max="60" :step="5" :n="11" :w="120" :h="22" color="var(--c3)" unit="s" :aria="t('x.k_snap')" @commit="setSnapInterval" />
             <span class="num snap-v">{{ cam.snapS }}s</span>
           </div>
+          <!-- with no picture this long, the home viewscreen folds and the G-code strip rises -->
+          <div class="snap wait">
+            <span class="k">{{ t('x.k_camwait') }}</span>
+            <LSlider class="snap-s" :reach="4" :value="cam.waitS" :target="cam.waitS" :min="10" :max="120" :step="5" :n="12" :w="120" :h="22" color="var(--c3)" unit="s" :aria="t('x.k_camwait')" @commit="setCamWait" />
+            <span class="num snap-v">{{ cam.waitS }}s</span>
+          </div>
           <LToggle class="kt kt1" :on="standby.enabled" :label="t('x.k_standby')" :sub="t('x.k_standby_d')" @toggle="setStandbyEnabled" />
           <LToggle v-if="canSleep" class="kt kt2" :on="standby.sleepIdle" :label="t('x.k_sleep')" :sub="t('x.k_sleep_d')" :disabled="!standby.enabled" @toggle="setSleepIdle" />
         </template>
@@ -216,7 +222,7 @@ import { dimPref, kiosk, setDimPref } from '../kiosk'
 import { confirmPanel, notice, run, useStrobe } from '../ui'
 import { demo, startDemo, stopDemo } from '../demo'
 import { alignIsSet, alignSummary, resetAlign, startAlign } from '../align'
-import { cam, setCamEnabled, setSnapInterval } from '../camera'
+import { cam, setCamEnabled, setCamWait, setSnapInterval } from '../camera'
 import { setSleepIdle, setStandbyEnabled, standby } from '../standby'
 import { night, setNight } from '../night'
 import { checkNative, readNative, setUpdateOrigin, update } from '../update'
@@ -621,6 +627,7 @@ onBeforeUnmount(() => {
 .snap .k { position: absolute; left: 0; top: 0; font-size: 11px; }
 .snap-s { position: absolute; left: 0; top: 12px; }
 .snap-v { position: absolute; left: 126px; top: 14px; font-size: 14px; color: var(--c5); }
+.snap.wait { left: 0; top: 152px; }
 .kt1 { top: 72px; }
 .kt2 { top: 112px; }
 .ku0 { position: absolute; left: 0; top: 142px; width: calc(414px + var(--xw, 0px)); }

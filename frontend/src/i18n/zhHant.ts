@@ -537,6 +537,7 @@ export const zhHant = {
     "unmounted": "未插入",
     "relink": "重新連接",
     "k_snap": "抓拍間隔",
+    "k_camwait": "無畫面時收起",
     "night": "夜間",
     "night_from": "夜間開始時間",
     "night_to": "夜間結束時間",

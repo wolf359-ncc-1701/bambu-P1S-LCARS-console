@@ -6,9 +6,9 @@
     <svg class="ce-fr" :width="w" :height="h" aria-hidden="true">
       <path :d="frame" fill="var(--ce-frame)" />
     </svg>
+    <div v-if="swipe" class="ce-grip" @pointerdown="gripDown" @pointerup="gripUp" @pointercancel="grip = null"></div>
     <div class="ce-h num">
       <span class="ce-ht">{{ head }}</span>
-      <span v-if="mode === 'layer'" class="ce-est">{{ t('x.sb_est') }}</span>
     </div>
     <div class="ce-body" :style="{ left: `${ARM_W + 6}px`, top: `${ARM_H + 3}px`, height: `${rowsN * ROW}px` }">
       <div v-if="rows.length" ref="list" class="ce-list">
@@ -30,8 +30,23 @@ import { lanTarget } from '../../printer'
 import { gcode, gcodeIndex, readLines } from '../gcode'
 import { GcodeCursor, LayerClock } from '../gcodeCursor'
 import { usePlant } from '../systems'
+import { stage } from '../stage'
 
-const props = withDefaults(defineProps<{ w: number, h: number, paused?: boolean, standby?: boolean }>(), { paused: false, standby: false })
+/* swipe: the top bar takes a vertical swipe (up: 'up', down: 'down'), for the home page to
+   fold or open the camera above the strip */
+const props = withDefaults(defineProps<{ w: number, h: number, paused?: boolean, standby?: boolean, swipe?: boolean }>(), { paused: false, standby: false, swipe: false })
+const emit = defineEmits<{ (e: 'swipe', dir: 'up' | 'down'): void }>()
+const grip = ref<{ y: number, id: number } | null>(null)
+const gripDown = (e: PointerEvent) => {
+  if (e.isPrimary) grip.value = { y: e.clientY, id: e.pointerId }
+}
+const gripUp = (e: PointerEvent) => {
+  const g = grip.value
+  grip.value = null
+  if (!g || g.id !== e.pointerId) return
+  const dy = (e.clientY - g.y) / (stage.scale || 1)
+  if (Math.abs(dy) >= 20) emit('swipe', dy < 0 ? 'up' : 'down')
+}
 const { t } = useI18n()
 const { device, printing, active } = usePlant()
 
@@ -187,8 +202,9 @@ const status = computed(() => {
 .ce { position: relative; overflow: hidden; --ce-frame: var(--g4); }
 .ce.sb { --ce-frame: var(--g3); }
 .ce-fr { position: absolute; left: 0; top: 0; }
+/* the swipe area: the top bar and a little below it, 30 px high (the rows below stay free) */
+.ce-grip { position: absolute; z-index: 1; left: 0; right: 0; top: 0; height: 30px; touch-action: none; cursor: ns-resize; }
 .ce-h { position: absolute; left: 12px; right: 8px; top: 0; height: 12px; display: flex; justify-content: space-between; font-size: 10px; line-height: 12px; color: #000; font-weight: 500; letter-spacing: .04em; white-space: nowrap; overflow: hidden; }
-.ce-est { color: #000; opacity: .7; }
 .ce-body { position: absolute; right: 0; overflow: hidden; }
 .ce-row { display: flex; height: 16px; font: 400 13px/16px Antonio, var(--lfont-body); white-space: nowrap; overflow: hidden; color: var(--g3); text-transform: none; letter-spacing: .02em; }
 .ce-row.past { color: var(--g4); opacity: .7; }
