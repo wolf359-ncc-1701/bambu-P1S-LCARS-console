@@ -100,7 +100,7 @@
     </svg>
 
     <!-- the G-code being run, in a thin elbow under the picture (or under the hologram) -->
-    <LCodeElbow v-if="L.codeH >= 30" class="code stg" data-o="3" :style="{ top: `${L.codeY}px` }" :w="L.lw" :h="L.codeH" :paused="standby.on || camBig || !running" :swipe="showCam" @swipe="codeSwipe" />
+    <LCodeElbow v-if="L.codeH >= 30" class="code stg" data-o="3" :class="{ shutter: showCam }" :style="codeStyle" :w="L.lw" :h="L.codeH" :paused="standby.on || camBig || !running" :swipe="showCam" @swipe="codeSwipe" />
 
     <!-- magnified deposition: the nozzle zone grows into a cross-section of the layers -->
     <div v-if="zoomMounted" ref="zoomEl" class="zoom" :class="{ on: zoomOn }">
@@ -293,13 +293,21 @@ const L = computed(() => {
   const lw = 212 + xa.value
   // the picture stops at 138 so the G-code strip under it has four lines
   const picH = Math.min(138, Math.floor(lw / (cam.aspect || 16 / 9)))
-  // folded (no picture for a while): only the header bar, and the code strip rises under it
-  const camH = camFolded.value ? 26 : 26 + picH + 15
+  const camH = 26 + picH + 15
   const holoH = showCam.value ? 268 : printing.value && holo.value ? 184 : 268
-  const codeY = showCam.value ? camH + 4 : 188
+  // with the camera the code strip is a shutter: always as tall as it is when the camera is
+  // folded (from just under the header bar to the bottom), moved down by transform to sit
+  // under the picture; folding slides it up over the picture (see codeStyle)
+  // 26: the picture starts right under the 26 px header, so the shutter closes flush with it
+  const codeY = showCam.value ? 26 : 188
   const codeH = showCam.value || (printing.value && holo.value) ? 268 - codeY : 0
-  return { lw, picH, camH, holoH, codeY, codeH, rx: 216 + xa.value, rw: 316 + xr.value }
+  const codeDrop = showCam.value ? camH + 4 - 26 : 0
+  return { lw, picH, camH, holoH, codeY, codeH, codeDrop, rx: 216 + xa.value, rw: 316 + xr.value }
 })
+const codeStyle = computed(() => ({
+  top: `${L.value.codeY}px`,
+  transform: L.value.codeDrop && !camFolded.value ? `translateY(${L.value.codeDrop}px)` : 'none',
+}))
 const px = (x: number, y: number, w?: number, h?: number) => ({
   left: `${x}px`, top: `${y}px`, ...(w !== undefined ? { width: `${w}px` } : {}), ...(h !== undefined ? { height: `${h}px` } : {}),
 })
@@ -728,13 +736,15 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.home { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; --xa: 0px; }
+.home { position: relative; width: calc(532px + var(--xw, 0px)); height: 268px; --xa: 0px; overflow: hidden; }
 .idle-lights, .ready, .idle-codes { position: absolute; }
 .diag { margin-left: var(--xa); }
 .msd { position: absolute; left: 0; top: 0; }
 .idle .msd { opacity: .6; }
 .idle .vs.msd { opacity: 1; }
-.code { position: absolute; left: 0; transition: top .3s steps(4, end), height .3s steps(4, end); }
+.code { position: absolute; left: 0; }
+/* the shutter: black, over the picture, moved only by transform, in one eased slide */
+.code.shutter { z-index: 3; background: #000; transition: transform .42s cubic-bezier(.25, .8, .25, 1); will-change: transform; }
 
 .zoom {
   position: absolute;
