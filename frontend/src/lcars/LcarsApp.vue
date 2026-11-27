@@ -557,6 +557,9 @@ onBeforeUnmount(() => {
   outline: none;
 }
 .pill:active { opacity: .72; }
+.pill.cond, .pill.auto, .pill.relink { overflow: visible; }
+.pill.cond .pill-t { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill.cond::after, .pill.auto::after, .pill.relink::after { content: ''; position: absolute; left: -4px; right: -4px; top: -6px; bottom: -14px; }
 .relink { right: 6px; top: 7px; height: 26px; padding: 0 16px; border-radius: 13px; font-size: 15px; line-height: 26px; background: var(--o4); animation: relinkIn .3s steps(4) both, aPill 3s steps(1) .3s infinite; }
 @keyframes relinkIn { from { transform: translateX(60px); opacity: 0 } to { transform: none; opacity: 1 } }
 .cond { left: 104px; min-width: 124px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
@@ -610,7 +613,11 @@ onBeforeUnmount(() => {
   left: 104px;
   top: 76px;
   width: 532px;
-  height: 268px;
+  /* pages are 268 high; the 12 px below are only for touch areas reaching down into the
+     frame (the engineering tabs), so nothing there is drawn */
+  height: 280px;
   overflow: hidden;
+  pointer-events: none;
 }
+.content > * { pointer-events: auto; }
 </style>

@@ -11,7 +11,7 @@
     :aria-valuemax="max"
     :aria-valuenow="shown"
     :aria-label="aria"
-    :style="{ width: `${w}px`, height: `${h}px` }"
+    :style="{ width: `${w}px`, height: `${h}px`, '--sl-pad': `${reach ?? Math.max(0, (38 - h) / 2)}px` }"
     @pointerdown="down"
     @keydown.left.prevent="nudge(-step)"
     @keydown.right.prevent="nudge(step)"
@@ -46,6 +46,8 @@ const props = withDefaults(defineProps<{
   unit?: string
   disabled?: boolean
   aria?: string
+  /* how far the touch area reaches above and below the track (px); by default to 38 high */
+  reach?: number
 }>(), {
   min: 0,
   step: 5,
@@ -139,6 +141,7 @@ onBeforeUnmount(() => cancel())
 
 <style scoped>
 .sl { position: relative; cursor: pointer; outline: none; touch-action: none; }
+.sl::before { content: ''; position: absolute; left: -6px; right: -6px; top: calc(var(--sl-pad) * -1); bottom: calc(var(--sl-pad) * -1); }
 .sl svg { display: block; overflow: visible; }
 .sl.dis { opacity: .35; cursor: default; }
 .sl-tip { position: absolute; top: -26px; left: 50%; width: 64px; margin-left: -32px; background: #000; border-radius: 10px; text-align: center; font-size: 18px; line-height: 20px; color: var(--o6); pointer-events: none; }

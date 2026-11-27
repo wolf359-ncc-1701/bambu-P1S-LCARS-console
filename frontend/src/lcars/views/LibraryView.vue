@@ -6,7 +6,7 @@
     <div class="hd stg" data-o="1">
       <span class="lbl">{{ t('x.records') }}</span>
       <span class="cap">{{ state === 'ok' ? `${files.length} ${t('x.on_file')}` : '' }}</span>
-      <LBtn class="rf" :label="t('x.reindex')" tone="g2" shape="pp" :disabled="!lan || state === 'loading'" @press="refresh" />
+      <LBtn class="rf" slop="0 2 1 2" :label="t('x.reindex')" tone="g2" shape="pp" :disabled="!lan || state === 'loading'" @press="refresh" />
     </div>
 
     <div class="list lscroll stg" data-o="2">
@@ -290,7 +290,8 @@ onBeforeUnmount(() => {
 .lbl { font-size: 15px; line-height: 17px; font-weight: 600; color: var(--ft); letter-spacing: .03em; }
 .hd { position: absolute; left: 0; top: 0; width: calc(300px + var(--xw, 0px) * .55); height: 24px; }
 .hd .cap { position: absolute; left: 130px; top: 3px; }
-.rf { position: absolute; right: 0; top: 0; width: 84px; height: 22px; font-size: 13px; }
+/* a low-use control boxed in by the header and the list: 27 px, above the 24 px (28 pt) floor */
+.rf { position: absolute; right: 0; top: 0; width: 84px; height: 26px; font-size: 13px; }
 
 .list { position: absolute; left: 0; top: 28px; width: calc(300px + var(--xw, 0px) * .55); height: 240px; }
 .msg { padding: 12px 4px; font-size: 14px; color: var(--g5); text-transform: none; }

@@ -3,13 +3,13 @@
        corner rulers and edge ticks over it, a slow scan line, and the link data in thin
        strips above and below. Everything drawn over the picture is hairline and dim, so the
        print stays the brightest thing. -->
-  <div class="vs" :class="{ live: hasPicture, big }" :style="{ width: `${w}px`, height: `${h}px` }" role="button" tabindex="0" :aria-label="t('x.cam_title')" @click="emit('press')" @keydown.enter.prevent="emit('press')">
+  <div class="vs" :class="{ live: hasPicture, top }" :style="{ width: `${w}px`, height: `${h}px` }" role="button" tabindex="0" :aria-label="t('x.cam_title')" @click="emit('press')" @keydown.enter.prevent="emit('press')">
     <div class="vs-head">
       <span class="vs-t">{{ t('x.cam_title') }}</span>
       <span class="vs-ks">
         <!-- chamber light and stream mode; their taps do not enlarge the view -->
-        <button type="button" class="vs-k" :class="{ on: lightOn }" :aria-pressed="lightOn" :disabled="!linked || lightBusy" @click.stop="toggleLight" @keydown.enter.stop @keydown.space.stop>{{ t('x.cam_lamp') }}</button>
-        <button type="button" class="vs-k" :class="{ on: cam.mode === 'snap' }" :aria-pressed="cam.mode === 'snap'" @click.stop="setCamMode(cam.mode === 'snap' ? 'live' : 'snap')" @keydown.enter.stop @keydown.space.stop>{{ t(cam.mode === 'snap' ? 'x.cam_m_snap' : 'x.cam_m_live') }}</button>
+        <button type="button" class="vs-k" data-hit :class="{ on: lightOn }" :aria-pressed="lightOn" :disabled="!linked || lightBusy" @click.stop="toggleLight" @keydown.enter.stop @keydown.space.stop>{{ t('x.cam_lamp') }}</button>
+        <button type="button" class="vs-k vs-k2" data-hit :class="{ on: cam.mode === 'snap' }" :aria-pressed="cam.mode === 'snap'" @click.stop="setCamMode(cam.mode === 'snap' ? 'live' : 'snap')" @keydown.enter.stop @keydown.space.stop>{{ t(cam.mode === 'snap' ? 'x.cam_m_snap' : 'x.cam_m_live') }}</button>
         <span class="vs-st" :class="`st-${badge.tone}`">{{ badge.text }}</span>
       </span>
     </div>
@@ -38,7 +38,7 @@
       <div v-if="hasPicture" class="vs-age num" :class="{ old: ageS >= 6 }">T+{{ ageS.toFixed(1) }}</div>
     </div>
 
-    <div class="vs-foot num">
+    <div class="vs-foot num" :style="top ? { top: `${box.y + box.h}px`, bottom: 'auto' } : undefined">
       <span>{{ res }}</span>
       <span>{{ cam.fps ? `${cam.fps.toFixed(2)} FPS` : '— FPS' }}</span>
       <span>#{{ String(cam.frames).padStart(4, '0') }}</span>
@@ -57,7 +57,9 @@ import { refreshPrinter } from '../../stores/printer'
 import { usePlant } from '../systems'
 import { run } from '../ui'
 
-const props = withDefaults(defineProps<{ w: number, h: number, paused?: boolean, big?: boolean }>(), { paused: false, big: false })
+/* top: the picture sits right under the header, its strip of frame data right under it, and
+   the box is only as tall as that (the home page puts the G-code strip below) */
+const props = withDefaults(defineProps<{ w: number, h: number, paused?: boolean, top?: boolean }>(), { paused: false, top: false })
 const emit = defineEmits<{ (e: 'press'): void }>()
 const { t } = useI18n()
 
@@ -72,15 +74,16 @@ const toggleLight = async () => {
   refreshPrinter()
 }
 
-const HEAD = 18
+const HEAD = 26
 const FOOT = 15
-const aspect = ref(16 / 9)
+const aspect = ref(cam.aspect)
 const natural = ref<[number, number]>([0, 0])
 const onLoad = (e: Event) => {
   const img = e.target as HTMLImageElement
   if (img.naturalWidth && img.naturalHeight) {
     natural.value = [img.naturalWidth, img.naturalHeight]
     aspect.value = img.naturalWidth / img.naturalHeight
+    cam.aspect = aspect.value
   }
 }
 
@@ -89,7 +92,7 @@ const box = computed(() => {
   const fw = props.w, fh = props.h - HEAD - FOOT
   let w = fw, h = fw / aspect.value
   if (h > fh) { h = fh; w = fh * aspect.value }
-  return { w: Math.floor(w), h: Math.floor(h), x: Math.floor((fw - w) / 2), y: HEAD + Math.floor((fh - h) / 2) }
+  return { w: Math.floor(w), h: Math.floor(h), x: Math.floor((fw - w) / 2), y: HEAD + (props.top ? 0 : Math.floor((fh - h) / 2)) }
 })
 const picBox = computed(() => ({ left: `${box.value.x}px`, top: `${box.value.y}px`, width: `${box.value.w}px`, height: `${box.value.h}px` }))
 const ret = computed(() => Math.round(Math.min(box.value.w, box.value.h) * .12))
@@ -166,11 +169,15 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .vs { position: absolute; background: #000; overflow: hidden; cursor: pointer; outline: none; }
-.vs-head { position: absolute; left: 0; right: 0; top: 0; height: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--g1); }
-.vs-t { font-size: 12px; line-height: 14px; color: var(--c4); letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vs-st { font-size: 10px; line-height: 12px; padding: 0 5px; border-radius: 6px; color: #000; white-space: nowrap; }
-.vs-ks { display: flex; align-items: center; gap: 4px; }
-.vs-k { height: 14px; padding: 0 6px; border: 0; border-radius: 7px; background: var(--g2); color: var(--g6); font: 600 10px/14px var(--lfont); letter-spacing: .04em; cursor: pointer; }
+.vs-head { position: absolute; z-index: 2; left: 0; right: 0; top: 0; height: 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--g1); }
+.vs-t { font-size: 13px; line-height: 16px; color: var(--c4); letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vs-st { font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; color: #000; white-space: nowrap; }
+.vs-ks { display: flex; align-items: center; }
+.vs-ks > * + * { margin-left: 8px; }
+/* 44x22 to see; the hit area reaches 4 px up and 12 px down into the picture's top edge (38 high) */
+.vs-k { position: relative; min-width: 44px; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; background: var(--g2); color: var(--g6); font: 600 12px/22px var(--lfont); letter-spacing: .04em; cursor: pointer; overflow: visible; }
+.vs-k2 { min-width: 56px; }
+.vs-k::after { content: ''; position: absolute; left: -3px; right: -3px; top: -4px; bottom: -12px; }
 .vs-k.on { background: var(--o4); color: #000; }
 .vs-k:disabled { opacity: .4; cursor: default; }
 .st-c { background: var(--c3); }
@@ -197,7 +204,5 @@ onBeforeUnmount(() => {
 .vs-none { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; padding: 0 12px; }
 .vs-none-t { font-size: 18px; line-height: 20px; color: var(--g5); letter-spacing: .08em; }
 .vs-none-s { font-size: 11px; line-height: 13px; color: var(--g4); text-transform: none; margin-top: 2px; }
-.vs-foot { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; display: flex; justify-content: space-between; border-top: 1px solid var(--g1); font-size: 10px; line-height: 13px; color: var(--g5); }
-.big .vs-t { font-size: 14px; }
-.big .vs-foot { font-size: 11px; }
+.vs-foot { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; padding: 0 2px; display: flex; justify-content: space-between; border-top: 1px solid var(--g1); font-size: 10px; line-height: 13px; color: var(--g5); }
 </style>

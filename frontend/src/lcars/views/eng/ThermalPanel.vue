@@ -23,8 +23,8 @@
       <!-- leaders: part → controls, right angles -->
       <g fill="none" stroke-width="1.2">
         <path :data-sys="injSys" d="M134 26 H200" />
-        <path :data-sys="coreSys" d="M116 128 H160 V112 H200" />
-        <path :data-sys="padSys" d="M178 220 H186 V206 H200" />
+        <path :data-sys="coreSys" d="M116 128 H160 V104 H200" />
+        <path :data-sys="padSys" d="M178 220 H186 V200 H200" />
       </g>
 
       <!-- matter injector: body, drive motor with gear, filament path -->
@@ -85,9 +85,9 @@
       <span class="big num" :data-sys="coreSys">{{ t0(p?.nozzle_temper) }}</span><span class="tg num">/{{ t0(p?.nozzle_target_temper) }}°</span>
     </div>
     <div class="pres core-p stg" data-o="3">
-      <LBtn v-for="(pr, i) in CORE_PRESETS" :key="pr.k" class="pre" :style="{ left: `${(i % 2) * 58}px`, top: `${Math.floor(i / 2) * 25}px` }" :label="pr.k === 'off' ? t('x.off') : `${pr.k} ${pr.v}`" :tone="Number(p?.nozzle_target_temper) === pr.v ? 'o3' : 'g2'" shape="pp" @press="setNozzle(pr.v)" />
+      <LBtn v-for="(pr, i) in CORE_PRESETS" :key="pr.k" class="pre" :style="{ left: `${PRE_X[i]}px` }" :label="pr.k === 'off' ? t('x.off') : pr.k" :sub="pr.k === 'off' ? '' : String(pr.v)" :tone="Number(p?.nozzle_target_temper) === pr.v ? 'o3' : 'g2'" shape="pp" @press="setNozzle(pr.v)" />
     </div>
-    <LSlider class="sld core-s stg" data-o="3" :value="Number(p?.nozzle_temper ?? 0)" :target="coreTarget" :max="300" :w="216 + xh" :n="30" :aria="t('x.core_set')" @commit="setNozzle" />
+    <LSlider class="sld core-s stg" data-o="3" :value="Number(p?.nozzle_temper ?? 0)" :target="coreTarget" :max="300" :w="188 + xh" :n="28" :aria="t('x.core_set')" @commit="setNozzle" />
     <LBtn class="sb core-m ctr stg" data-o="3" label="−" tone="g2" @press="setNozzle(Math.max(0, coreTarget - 5))" />
     <LBtn class="sb core-pl ctr stg" data-o="3" label="+" tone="g3" @press="setNozzle(Math.min(300, coreTarget + 5))" />
     <LBtn class="sb core-k stg" data-o="3" label="123" :aria="t('x.keypad')" tone="o4" shape="pr" @press="keyNozzle" />
@@ -100,9 +100,9 @@
       <span class="big2 num" :data-sys="padSys">{{ t0(p?.bed_temper) }}</span><span class="tg num">/{{ t0(p?.bed_target_temper) }}°</span>
     </div>
     <div class="pres pad-p stg" data-o="3">
-      <LBtn v-for="(pr, i) in PAD_PRESETS" :key="pr.k" class="pre" :style="{ left: `${(i % 2) * 58}px`, top: `${Math.floor(i / 2) * 25}px` }" :label="pr.k === 'off' ? t('x.off') : `${pr.k} ${pr.v}`" :tone="Number(p?.bed_target_temper) === pr.v ? 'o3' : 'g2'" shape="pp" @press="setBed(pr.v)" />
+      <LBtn v-for="(pr, i) in PAD_PRESETS" :key="pr.k" class="pre" :style="{ left: `${PRE_X[i]}px` }" :label="pr.k === 'off' ? t('x.off') : pr.k" :sub="pr.k === 'off' ? '' : String(pr.v)" :tone="Number(p?.bed_target_temper) === pr.v ? 'o3' : 'g2'" shape="pp" @press="setBed(pr.v)" />
     </div>
-    <LSlider class="sld pad-s stg" data-o="3" :value="Number(p?.bed_temper ?? 0)" :target="padTarget" :max="110" :w="216 + xh" :n="22" color="var(--c3)" :aria="t('x.pad_set')" @commit="setBed" />
+    <LSlider class="sld pad-s stg" data-o="3" :value="Number(p?.bed_temper ?? 0)" :target="padTarget" :max="110" :w="188 + xh" :n="22" color="var(--c3)" :aria="t('x.pad_set')" @commit="setBed" />
     <LBtn class="sb pad-m ctr stg" data-o="3" label="−" tone="g2" @press="setBed(Math.max(0, padTarget - 5))" />
     <LBtn class="sb pad-pl ctr stg" data-o="3" label="+" tone="g3" @press="setBed(Math.min(110, padTarget + 5))" />
     <LBtn class="sb pad-k stg" data-o="3" label="123" :aria="t('x.keypad')" tone="o4" shape="pr" @press="keyBed" />
@@ -145,8 +145,8 @@ const filColor = computed(() => {
 })
 const holoLeaders = computed(() => [
   { part: 'ext' as const, x: 200 + xh.value, y: 26, sys: injSys.value },
-  { part: 'block' as const, x: 200 + xh.value, y: 112, sys: coreSys.value },
-  { part: 'bed' as const, x: 200 + xh.value, y: 206, sys: padSys.value },
+  { part: 'block' as const, x: 200 + xh.value, y: 104, sys: coreSys.value },
+  { part: 'bed' as const, x: 200 + xh.value, y: 200, sys: padSys.value },
 ])
 const coreSys = computed(() => systems.value.core)
 const padSys = computed(() => systems.value.pad)
@@ -171,6 +171,8 @@ const GEAR = (() => {
 
 const CORE_PRESETS = [{ k: 'PLA', v: 220 }, { k: 'PETG', v: 250 }, { k: 'ABS', v: 260 }, { k: 'off', v: 0 }]
 const PAD_PRESETS = [{ k: 'PLA', v: 55 }, { k: 'PETG', v: 70 }, { k: 'ABS', v: 90 }, { k: 'off', v: 0 }]
+// four 38 px capsules in a row, 4 px apart; OFF stands 8 px off the hottest preset
+const PRE_X = [0, 58, 116, 176]
 
 /* ---- core cells ---- */
 const litCells = computed(() => Math.round(Math.min(300, p.value?.nozzle_temper ?? 0) / 300 * CELLS))
@@ -283,24 +285,23 @@ const extrude = (step: number) => {
 .inj-b.b1 { left: 316px; width: calc(106px + var(--xh)); margin-left: var(--xh) !important; }
 .inj-b.b2 { left: 426px; width: 106px; }
 
-.core-h { top: 54px; width: 210px; }
-.core-r { position: absolute; left: 204px; top: 72px; }
-.core-p { position: absolute; left: 418px; top: 56px; width: 114px; height: 50px; }
-.pre { position: absolute; width: 55px; height: 22px; font-size: 11px; padding: 0 4px 2px; }
+/* every control 38 px high (44 pt): presets in one row, the stepper keys 38 wide */
+.core-h { top: 44px; width: calc(328px + var(--xh)); }
+.core-r { position: absolute; left: 204px; top: 66px; }
+.core-p { position: absolute; left: 302px; top: 63px; width: 230px; height: 38px; }
+.pre { position: absolute; top: 0; width: 54px; height: 38px; font-size: 13px; padding: 0 4px 2px; }
+.pre :deep(.lb-sub) { font-size: 11px; line-height: 12px; margin-top: 0; }
 .sld { position: absolute; left: 204px; }
-.core-s { top: 120px; }
-.sb { position: absolute; height: 30px; }
-.core-m, .core-pl, .core-k { top: 118px; }
-.core-m { left: 424px; width: 30px; }
-.core-pl { left: 456px; width: 30px; }
-.core-k { left: 488px; width: 44px; font-size: 12px; }
+.core-s { top: 112px; }
+.sb { position: absolute; height: 38px; }
+.core-m, .core-pl, .core-k { top: 106px; }
+.core-m, .pad-m { left: 400px; width: 38px; }
+.core-pl, .pad-pl { left: 442px; width: 38px; }
+.core-k, .pad-k { left: 484px; width: 48px; font-size: 13px; }
 
-.pad-h { top: 156px; width: 210px; }
-.pad-r { position: absolute; left: 204px; top: 174px; }
-.pad-p { position: absolute; left: 418px; top: 158px; width: 114px; height: 50px; }
-.pad-s { top: 210px; }
-.pad-m, .pad-pl, .pad-k { top: 208px; }
-.pad-m { left: 424px; width: 30px; }
-.pad-pl { left: 456px; width: 30px; }
-.pad-k { left: 488px; width: 44px; font-size: 12px; }
+.pad-h { top: 142px; width: calc(328px + var(--xh)); }
+.pad-r { position: absolute; left: 204px; top: 164px; }
+.pad-p { position: absolute; left: 302px; top: 161px; width: 230px; height: 38px; }
+.pad-s { top: 206px; }
+.pad-m, .pad-pl, .pad-k { top: 200px; }
 </style>

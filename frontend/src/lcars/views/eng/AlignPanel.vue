@@ -36,7 +36,7 @@
     </svg>
 
     <div class="views stg" data-o="2">
-      <LBtn v-for="(v, i) in VIEWS3" :key="v.k" class="vb" :style="{ left: `${i * 92}px` }" :label="t(v.label)" tone="g2" shape="pp" :active="view === v.k" @press="go(v.k)" />
+      <LBtn v-for="(v, i) in VIEWS3" :key="v.k" class="vb" slop="2 2 2 2" :style="{ left: `${i * 92}px` }" :label="t(v.label)" tone="g2" shape="pp" :active="view === v.k" @press="go(v.k)" />
     </div>
 
     <svg class="dial stg" :class="{ locked: busy }" data-o="2" width="156" height="156" viewBox="-78 -78 156 156">
@@ -44,8 +44,8 @@
       <path v-for="s in SECTORS" :key="s.id" class="sec" :class="s.ring" :d="s.d" role="button" tabindex="0" :aria-label="s.aria"
             @click="move(s.axis, s.step, $event)" @keydown.enter="move(s.axis, s.step, $event)" />
       <text v-for="s in SECTORS" :key="`t${s.id}`" :x="s.tx" :y="s.ty" text-anchor="middle" class="sec-t" :class="s.ring">{{ s.label }}</text>
-      <circle class="home-b" r="15" role="button" tabindex="0" :aria-label="t('x.home_axes')" @click="home($event)" @keydown.enter="home($event)" />
-      <path d="M-6 0 H6 M0 -6 V6" stroke="#000" stroke-width="2" pointer-events="none" />
+      <circle class="home-b" r="20" role="button" tabindex="0" :aria-label="t('x.home_axes')" @click="home($event)" @keydown.enter="home($event)" />
+      <path d="M-7 0 H7 M0 -7 V7" stroke="#000" stroke-width="2" pointer-events="none" />
     </svg>
     <div class="xy-l cap stg" data-o="3">{{ t('x.xy_plane') }}</div>
 
@@ -62,21 +62,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { GcodeState } from '@bambulab-p1screen/printer-api'
-import { client } from '../../../printer'
 import { flick } from '../../ambient'
 import { sector } from '../../geom'
-import { anchors, homeEstimate, jogEstimate, toolPos, useCamera, type ViewName } from '../../plant3d'
+import { anchors, toolPos, useCamera, type ViewName } from '../../plant3d'
+import { useJog, type Axis } from '../../motion'
 import { usePlant } from '../../systems'
-import { notice, run } from '../../ui'
-import { play } from '../../sfx'
 import LBtn from '../../components/LBtn.vue'
 import LPrinter3D from '../../components/LPrinter3D.vue'
 import LHoloPrinter from '../../components/LHoloPrinter.vue'
 import { holoSupported } from '../../holo/gl'
 
 const { t } = useI18n()
-const { device, systems } = usePlant()
+const { systems } = usePlant()
 const holo = ref(holoSupported())
 const { cam, view, settled, go, dispose } = useCamera('iso', 125, 110, 1)
 onBeforeUnmount(dispose)
@@ -97,7 +94,7 @@ const QUADS = [
   { centre: 180, axis: 'x' as const, sign: -1, name: '−X' },
 ]
 const SECTORS = QUADS.flatMap(q => (['outer', 'inner'] as const).map((ring) => {
-  const [r0, r1] = ring === 'outer' ? [46, 74] : [19, 43]
+  const [r0, r1] = ring === 'outer' ? [52, 76] : [26, 49]
   const step = (ring === 'outer' ? 10 : 1) * q.sign
   const rm = (r0 + r1) / 2
   return {
@@ -113,49 +110,18 @@ const SECTORS = QUADS.flatMap(q => (['outer', 'inner'] as const).map((ring) => {
   }
 }))
 const ZS = [{ d: -10 }, { d: -1 }, { d: 1 }, { d: 10 }]
-
-// a paused print still has the part on the pad: motion stays locked
-const busy = computed(() => !device.value || [GcodeState.Running, GcodeState.Prepare, GcodeState.Pause, GcodeState.Slicing].includes(device.value.gcode_state))
-// one motion command at a time, so taps cannot queue moves or race a homing
-const sending = ref(false)
-const fail = (m: string) => t('x.failed', { message: m })
-const send = (label: string, gcode: string) => run(label, () => client.request('print.gcode_line', { param: gcode }), fail)
-
-const move = async (axis: 'x' | 'y' | 'z', step: number, e?: Event) => {
+const jog = useJog()
+const busy = jog.busy
+const move = async (axis: Axis, step: number, e?: Event) => {
   if (e?.currentTarget) flick(e.currentTarget as Element, 1)
-  // jogging the emitter mid-replication would collide with the part
-  if (busy.value) {
-    notice(t('x.printing_lock'), 'o')
-    play('deny')
-    play('voice:unable')
-    return
-  }
-  go(axis === 'z' ? 'front' : 'top')
-  if (sending.value) return
-  sending.value = true
-  const gcode = `M211 S\nM211 X1 Y1 Z1\nM1002 push_ref_mode\nG91\nG1 ${axis.toUpperCase()}${step} F${axis === 'z' ? 900 : 3000}\nM1002 pop_ref_mode\nM211 R\n`
-  try {
-    if (await send(`${axis.toUpperCase()} ${step > 0 ? '+' : ''}${step}MM`, gcode)) jogEstimate(axis, step)
-  } finally {
-    sending.value = false
-  }
+  // an XY move looks straight down on the bed, a Z move from the front
+  if (!busy.value) go(axis === 'z' ? 'front' : 'top')
+  await jog.move(axis, step)
 }
 const home = async (e?: Event) => {
   if (e?.currentTarget) flick(e.currentTarget as Element, 1)
-  if (busy.value) {
-    notice(t('x.printing_lock'), 'o')
-    play('deny')
-    play('voice:unable')
-    return
-  }
-  go('iso')
-  if (sending.value) return
-  sending.value = true
-  try {
-    if (await send(t('x.home_axes'), 'G28 \n')) homeEstimate()
-  } finally {
-    sending.value = false
-  }
+  if (!busy.value) go('iso')
+  await jog.home()
 }
 </script>
 
@@ -169,8 +135,8 @@ const home = async (e?: Event) => {
 .dat-t { fill: var(--g5); }
 .lockb { animation: lockb .5s step-end 1 forwards; }
 @keyframes lockb { 0% { opacity: 1 } 20% { opacity: .3 } 40% { opacity: 1 } 80% { opacity: 0 } 100% { opacity: 0 } }
-.views { position: absolute; left: 258px; top: 0; width: 274px; height: 24px; }
-.vb { position: absolute; top: 0; width: 88px; height: 24px; font-size: 13px; }
+.views { position: absolute; left: 258px; top: 2px; width: 274px; height: 26px; }
+.vb { position: absolute; top: 0; width: 88px; height: 26px; font-size: 13px; }
 .dial { position: absolute; left: 256px; top: 32px; }
 .locked { opacity: .35; }
 .sec { cursor: pointer; outline: none; }

@@ -28,7 +28,7 @@
       <div class="ds">{{ t(r.desc) }}</div>
       <div class="pct num" :class="r.pct > 0 ? 'c-c4' : 'c-g5'">{{ r.pct }}<span class="u">%</span></div>
       <LSlider class="sl" :value="r.pct" :target="r.pct" :max="100" :step="10" :n="10" :w="150 + stage.wing" :h="24" color="var(--c3)" hot="var(--c4)" unit="%" :aria="t(r.name)" @commit="setFan(r.type, $event)" />
-      <LBtn class="tg" :label="r.pct > 0 ? t('x.off') : t('x.on')" :tone="r.pct > 0 ? 'g2' : 'c3'" shape="pr" @press="setFan(r.type, r.pct > 0 ? 0 : 100)" />
+      <LBtn class="tg" slop="2 0 2 0" :label="r.pct > 0 ? t('x.off') : t('x.on')" :tone="r.pct > 0 ? 'g2' : 'c3'" shape="pr" @press="setFan(r.type, r.pct > 0 ? 0 : 100)" />
     </div>
   </div>
 </template>
@@ -103,5 +103,5 @@ const setFan = async (type: FanType, pct: number) => {
 .pct { position: absolute; right: 0; top: 0; font-size: 28px; line-height: 30px; }
 .u { font-size: 14px; color: var(--g5); }
 .sl { position: absolute; left: 8px; top: 40px; }
-.tg { position: absolute; left: calc(166px + var(--xw, 0px)); top: 38px; width: 82px; height: 28px; font-size: 13px; }
+.tg { position: absolute; left: calc(166px + var(--xw, 0px)); top: 36px; width: 82px; height: 34px; font-size: 13px; }
 </style>

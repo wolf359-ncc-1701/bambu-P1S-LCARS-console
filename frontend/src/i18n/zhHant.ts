@@ -639,7 +639,19 @@ export const zhHant = {
     "failed": "失敗：{message}",
     "sent": "已發送",
     "u_hr": "時",
-    "u_min": "分"
+    "u_min": "分",
+    "feed_swap": "換料",
+    "feed_unload": "退料",
+    "feed_load": "進料",
+    "feed_swapping": "換料中",
+    "ch_watch": "敏感耗材",
+    "gc_idle": "沒有打印任務",
+    "cf_ctl": "控制",
+    "cf_zoom": "縮放",
+    "cf_mode": "模式",
+    "cf_back": "返回",
+    "cf_in": "放大",
+    "cf_out": "縮小"
   }
 }
 

@@ -131,6 +131,8 @@ const zh = {
   // keypad / confirm / common
   range: '范围', del: '删除', set: '设定', cancel: '取消', confirm: '确认', done: '已执行', failed: '失败：{message}',
   sent: '已发送', u_hr: '时', u_min: '分',
+  feed_swap: '换料', feed_unload: '退料', feed_load: '进料', feed_swapping: '换料中', ch_watch: '敏感耗材', gc_idle: '没有打印任务',
+  cf_ctl: '控制', cf_zoom: '缩放', cf_mode: '模式', cf_back: '返回', cf_in: '放大', cf_out: '缩小',
 }
 
 type Messages = typeof zh
@@ -251,6 +253,8 @@ const en: Messages = {
 
   range: 'RANGE', del: 'DEL', set: 'SET', cancel: 'CANCEL', confirm: 'CONFIRM', done: 'DONE', failed: 'FAILED: {message}',
   sent: 'SENT', u_hr: 'H', u_min: 'M',
+  feed_swap: 'SWAP', feed_unload: 'UNLOADING', feed_load: 'LOADING', feed_swapping: 'CHANGING', ch_watch: 'WARM MATERIAL', gc_idle: 'NO JOB RUNNING',
+  cf_ctl: 'CONTROL', cf_zoom: 'ZOOM', cf_mode: 'MODE', cf_back: 'BACK', cf_in: 'ZOOM IN', cf_out: 'ZOOM OUT',
 }
 
 export const lcarsMessages = { zh: { x: zh }, en: { x: en } }

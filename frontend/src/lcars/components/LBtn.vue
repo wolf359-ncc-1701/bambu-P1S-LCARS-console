@@ -3,12 +3,13 @@
     ref="el"
     type="button"
     class="lb"
-    :class="[`t-${active ? 'on' : tone}`, shape]"
+    :class="[`t-${active ? 'on' : tone}`, shape, { 'has-hit': !!slop }]"
     :disabled="disabled"
     :aria-label="aria || label"
     :aria-pressed="active === undefined ? undefined : active"
     @click="onClick"
   >
+    <span v-if="slop" class="lb-hit" :style="hitStyle"></span>
     <span v-if="dot" class="lb-dot"></span>
     <span v-if="code" class="lb-s">{{ code }}</span>
     <span ref="txt" class="lb-t">
@@ -21,7 +22,7 @@
 <script setup lang="ts">
 /* A block button. One language at a time: `label` is the main word, `sub` an optional
    smaller line in the same language. */
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { hit } from '../ambient'
 import { applyOptical, trackOptical } from '../optical'
 import { play, type CueName } from '../sfx'
@@ -37,6 +38,9 @@ const props = withDefaults(defineProps<{
   dot?: boolean
   aria?: string
   sound?: CueName | ''
+  /* an invisible extension of the touch area, "top right bottom left" in px (like margin),
+     for a control that cannot look bigger: it must only reach into empty space */
+  slop?: string
 }>(), {
   sub: '',
   code: '',
@@ -47,10 +51,16 @@ const props = withDefaults(defineProps<{
   dot: false,
   aria: '',
   sound: 'press',
+  slop: '',
 })
 
 const emit = defineEmits<{ (e: 'press'): void }>()
 const el = ref<HTMLElement | null>(null)
+const hitStyle = computed(() => {
+  const v = props.slop.trim().split(/\s+/).map(Number)
+  const [t, r = t, b = t, l = r] = v
+  return { top: `${-t}px`, right: `${-r}px`, bottom: `${-b}px`, left: `${-l}px` }
+})
 const txt = ref<HTMLElement | null>(null)
 
 // centred labels (capsules and .ctr buttons) are centred by their blurred ink mass, not
@@ -78,6 +88,9 @@ const onClick = (e: MouseEvent) => {
 </script>
 
 <style scoped>
+.lb.has-hit { overflow: visible; }
+.lb.has-hit .lb-t { max-width: calc(100% - 14px); overflow: hidden; text-overflow: ellipsis; }
+.lb-hit { position: absolute; }
 .lb-sub {
   display: block;
   text-indent: 0;
