@@ -1,7 +1,7 @@
 <template>
   <div class="home" :class="{ idle: !printing }" :style="{ '--xa': `${xa}px` }">
     <!-- ===== the chamber camera as a viewscreen (LAN mode), on top; tap to enlarge ===== -->
-    <LViewscreen v-if="showCam" class="msd stg" data-o="1" top :w="L.lw" :h="L.camH" :paused="standby.on || camBig" @press="camBig = true" />
+    <LViewscreen v-if="showCam" class="msd stg" data-o="1" top :folded="camFolded" :w="L.lw" :h="L.camH" :paused="standby.on || camBig" @press="camPress" />
     <!-- ===== without a camera: the MSD, a cutaway of the printer, every region a system ===== -->
     <LHoloPrinter
       v-else-if="holo"
@@ -293,7 +293,8 @@ const L = computed(() => {
   const lw = 212 + xa.value
   // the picture stops at 138 so the G-code strip under it has four lines
   const picH = Math.min(138, Math.floor(lw / (cam.aspect || 16 / 9)))
-  const camH = 26 + picH + 15
+  // folded (no picture for a while): only the header bar, and the code strip rises under it
+  const camH = camFolded.value ? 26 : 26 + picH + 15
   const holoH = showCam.value ? 268 : printing.value && holo.value ? 184 : 268
   const codeY = showCam.value ? camH + 4 : 188
   const codeH = showCam.value || (printing.value && holo.value) ? 268 - codeY : 0
@@ -338,6 +339,30 @@ const holoTrace = (now: number) => {
 /* ---- the camera takes the hologram's place in LAN mode ---- */
 const camBig = ref(false)
 
+/* With no picture for cam.waitS seconds (no frame yet, or none for that long past the snapshot
+   interval) the viewscreen folds to its header bar. A frame coming in opens it again; a tap on
+   the folded bar opens it for another wait. */
+const camNow = ref(Date.now())
+const camShownAt = ref(Date.now())
+const camOpenUntil = ref(0)
+const camFolded = computed(() => {
+  if (!showCam.value) return false
+  const now = camNow.value
+  if (now < camOpenUntil.value) return false
+  const wait = cam.waitS * 1000
+  if (now - camShownAt.value < wait) return false
+  if (!cam.url || !cam.frameAt) return true
+  return now - cam.frameAt > wait + (cam.mode === 'snap' ? cam.snapS * 1000 : 0)
+})
+const camPress = () => {
+  if (!camFolded.value) {
+    camBig.value = true
+    return
+  }
+  camOpenUntil.value = Date.now() + cam.waitS * 1000
+  camShownAt.value = Date.now()
+}
+
 /* ---- skip objects: needs the plate's object list from the job file, and two or more left ---- */
 const skipOpen = ref(false)
 const canSkip = computed(() => {
@@ -350,7 +375,10 @@ const showCam = computed(() => {
   void device.value // re-read the link with each report
   return cam.enabled && connected.value && !!lanTarget()
 })
-watch(showCam, (on) => { if (!on) camBig.value = false })
+watch(showCam, (on) => {
+  if (!on) camBig.value = false
+  else camShownAt.value = Date.now()
+})
 
 /* ---- readouts ---- */
 const taskName = computed(() => device.value?.subtask_name || t('x.unnamed'))
@@ -661,7 +689,11 @@ watch(() => ui.autoActive, (on) => {
 
 let readyTimer = 0
 onMounted(() => {
-  pickTimer = window.setInterval(() => { if (!document.hidden) pick() }, 1000)
+  pickTimer = window.setInterval(() => {
+    if (document.hidden) return
+    pick()
+    camNow.value = Date.now()
+  }, 1000)
   readyTimer = window.setInterval(() => { if (!document.hidden && !printing.value) readyIdx.value++ }, 11000)
   if (scan.value) {
     // an optical scan: twelve stepped rows down the hull, then a pause off-screen
@@ -690,7 +722,7 @@ onBeforeUnmount(() => {
 .msd { position: absolute; left: 0; top: 0; }
 .idle .msd { opacity: .6; }
 .idle .vs.msd { opacity: 1; }
-.code { position: absolute; left: 0; }
+.code { position: absolute; left: 0; transition: top .3s steps(4, end), height .3s steps(4, end); }
 
 .zoom {
   position: absolute;

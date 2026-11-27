@@ -26,6 +26,8 @@ export const cam = reactive({
   enabled: (() => { try { return localStorage.getItem('lcars_cam') !== '0' } catch { return true } })(),
   // seconds between snapshots in snap mode
   snapS: (() => { try { const v = Number(localStorage.getItem('lcars_cam_snap')); return v >= 5 && v <= 60 ? v : 10 } catch { return 10 } })(),
+  // seconds without a picture after which the home viewscreen folds to its header bar
+  waitS: (() => { try { const v = Number(localStorage.getItem('lcars_cam_wait')); return v >= 10 && v <= 120 ? v : 30 } catch { return 30 } })(),
   mode: ((() => { try { return localStorage.getItem('lcars_cam_mode') } catch { return null } })() === 'snap' ? 'snap' : 'live') as CamMode,
   status: 'off' as CamStatus,
   url: '', // object URL of the newest frame
@@ -38,6 +40,11 @@ export const cam = reactive({
   // the picture's width / height, from the newest frame (the home page lays out by it)
   aspect: 16 / 9,
 })
+
+export const setCamWait = (s: number) => {
+  cam.waitS = Math.max(10, Math.min(120, Math.round(s)))
+  try { localStorage.setItem('lcars_cam_wait', String(cam.waitS)) } catch { /* private mode */ }
+}
 
 export const setSnapInterval = (s: number) => {
   cam.snapS = Math.max(5, Math.min(60, Math.round(s)))
