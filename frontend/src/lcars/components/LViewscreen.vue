@@ -14,7 +14,7 @@
       </span>
     </div>
 
-    <div v-if="!folded" class="vs-pic" :style="picBox">
+    <div class="vs-pic" :style="picBox">
       <img v-if="hasPicture" :src="cam.url" alt="" draggable="false" @load="onLoad" />
       <div v-if="!hasPicture" class="vs-none">
         <div class="vs-none-t">{{ t('x.cam_none') }}</div>
@@ -38,7 +38,7 @@
       <div v-if="hasPicture" class="vs-age num" :class="{ old: ageS >= 6 }">T+{{ ageS.toFixed(1) }}</div>
     </div>
 
-    <div v-if="!folded" class="vs-foot num" :style="top ? { top: `${box.y + box.h}px`, bottom: 'auto' } : undefined">
+    <div class="vs-foot num" :style="top ? { top: `${box.y + box.h}px`, bottom: 'auto' } : undefined">
       <span>{{ res }}</span>
       <span>{{ cam.fps ? `${cam.fps.toFixed(2)} FPS` : '— FPS' }}</span>
       <span>#{{ String(cam.frames).padStart(4, '0') }}</span>
@@ -59,8 +59,9 @@ import { run } from '../ui'
 
 /* top: the picture sits right under the header, its strip of frame data right under it, and
    the box is only as tall as that (the home page puts the G-code strip below) */
-/* folded: only the header bar is shown (no picture for a while); the stream is still held, so
-   the first frame that comes in can open it again */
+/* folded: the home page's code strip has slid up over the picture (no picture for a while, or
+   folded by hand); only the header bar shows. The stream is still held, so the first frame
+   that comes in can open it again */
 const props = withDefaults(defineProps<{ w: number, h: number, paused?: boolean, top?: boolean, folded?: boolean }>(), { paused: false, top: false, folded: false })
 const emit = defineEmits<{ (e: 'press'): void }>()
 const { t } = useI18n()
