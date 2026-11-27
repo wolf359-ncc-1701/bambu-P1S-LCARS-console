@@ -11,6 +11,7 @@
         v-for="(m, i) in MODES"
         :key="m.key"
         class="tab s3"
+        slop="4 1 10 1"
         :class="{ strobe: strobing === m.key }"
         :style="{ left: `${TAB_X + i * tabW}px`, width: `${tabW - 3}px` }"
         :label="t(`x.m_${m.key}`)"
@@ -21,6 +22,7 @@
       />
       <LBtn
         class="tab light"
+        slop="4 1 10 1"
         :style="{ left: `${TAB_X + MODES.length * tabW}px` }"
         :label="t('x.m_light')"
         :tone="lightOn ? 'o3' : 'g1'"

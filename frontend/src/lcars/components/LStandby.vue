@@ -49,19 +49,8 @@
           <span v-if="heaterLinked"><span class="cap">{{ t('x.hc_bay') }}</span> {{ chamberValue }}</span>
         </div>
 
-        <!-- the G-code being run -->
-        <div v-if="printing" class="sb-code">
-          <div class="sb-code-h cap">
-            <span>{{ codeHead }}</span>
-            <span v-if="codeMode === 'layer'" class="sb-est">{{ t('x.sb_est') }}</span>
-          </div>
-          <template v-if="codeLines.length">
-            <div v-for="l in codeLines" :key="l.n" class="sb-line" :class="{ cur: l.n === codeCur }">
-              <span class="sb-ln num">{{ l.n + 1 }}</span><span class="sb-lt">{{ l.text }}</span>
-            </div>
-          </template>
-          <div v-else class="sb-code-s">{{ codeStatus }}</div>
-        </div>
+        <!-- the G-code being run, read along as on the home page -->
+        <LCodeElbow v-if="printing" class="sb-code" standby :w="codeW" :h="112" />
       </div>
       <div class="sb-hint cap">{{ t('x.sb_wake') }}</div>
     </div>
@@ -69,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { etaAt, usePlant, t0 } from '../systems'
 import { usePrintState } from '../printStatus'
@@ -77,10 +66,10 @@ import { usePlantModel } from '../plantModel'
 import { stage } from '../stage'
 import { holoSupported } from '../holo/gl'
 import { BUILD, type Cam } from '../plant3d'
-import { client, lanTarget } from '../../printer'
+import { client } from '../../printer'
 import { getCurrentDevice } from '../../utils/device'
-import { ensureGcode, gcode, gcodeIndex, layerSpan, readLines } from '../gcode'
 import LHoloPrinter from './LHoloPrinter.vue'
+import LCodeElbow from './LCodeElbow.vue'
 
 const emit = defineEmits<{ (e: 'wake'): void }>()
 const { t, locale } = useI18n()
@@ -127,98 +116,8 @@ const DRIFT: [number, number][] = [[0, 0], [10, 4], [14, -6], [4, -12], [-8, -8]
 const driftIdx = ref(Math.floor(Math.random() * DRIFT.length))
 const drift = computed(() => DRIFT[driftIdx.value % DRIFT.length])
 
-/* ---- the G-code window ----
-   With the printer's own line number the window follows it exactly. Without one it shows
-   the current layer, and the cursor walks through the layer at the pace layers have been
-   taking (marked as an estimate). */
-const jobKey = computed(() => {
-  const p = device.value
-  if (!p || !printing.value || (!p.task_id && !p.subtask_name && !p.gcode_file)) return ''
-  return `${p.task_id || ''}|${p.subtask_name || ''}|${p.gcode_file || ''}`
-})
-watch(jobKey, (k) => {
-  if (k) ensureGcode(k, device.value?.subtask_name, device.value?.gcode_file)
-}, { immediate: true })
-
-// layer timing, to place the cursor inside a layer. Only whole layers count: the layer
-// that was running when the screen opened, and the warm-up before layer 1, do not.
-let layerAt = Date.now()
-let lastLayer = -1
-let layerSeen = false // layerAt is the real start of the current layer
-const durations: number[] = []
-watch(jobKey, () => {
-  durations.length = 0
-  lastLayer = -1
-  layerSeen = false
-  layerAt = Date.now()
-})
-watch(() => device.value?.layer_num, (l) => {
-  if (l === undefined || !printing.value) return
-  const t1 = Date.now()
-  if (l === lastLayer) return
-  const dt = t1 - layerAt
-  if (layerSeen && lastLayer >= 1 && l === lastLayer + 1 && dt >= 1000) {
-    durations.push(dt)
-    if (durations.length > 6) durations.shift()
-  }
-  layerSeen = lastLayer >= 0 && l >= 1
-  layerAt = t1
-  lastLayer = l
-}, { immediate: true })
-const layerMs = () => {
-  if (durations.length) return Math.max(1000, [...durations].sort((a, b) => a - b)[Math.floor(durations.length / 2)])
-  const p = device.value
-  const left = Math.max(1, (p?.total_layer_num ?? 0) - (p?.layer_num ?? 0) + 1)
-  return Math.max(20000, ((p?.mc_remaining_time ?? 0) * 60000) / left)
-}
-
-const codeLines = shallowRef<{ n: number, text: string }[]>([])
-const codeCur = ref(-1)
-const codeMode = ref<'line' | 'layer' | ''>('')
-const refreshCode = () => {
-  const ix = gcodeIndex()
-  const p = device.value
-  if (!ix || !p || gcode.status !== 'ready' || ix.key !== jobKey.value) {
-    codeLines.value = []
-    codeMode.value = ''
-    return
-  }
-  const ln = Number(p.mc_print_line_number)
-  let cur = -1
-  if (Number.isFinite(ln) && ln > 0 && ln < ix.lines) {
-    cur = ln
-    codeMode.value = 'line'
-  } else {
-    const span = layerSpan(ix, p.layer_num ?? 0)
-    if (!span) {
-      codeLines.value = []
-      codeMode.value = ''
-      return
-    }
-    const k = Math.min(.98, Math.max(0, (Date.now() - layerAt) / layerMs()))
-    cur = Math.round(span[0] + k * (span[1] - span[0]))
-    codeMode.value = 'layer'
-  }
-  codeCur.value = cur
-  codeLines.value = readLines(ix, cur - 2, 6, 58)
-}
-const codeHead = computed(() => {
-  if (codeMode.value === 'line') return `${t('x.sb_gcode')} • ${t('x.sb_line')} ${codeCur.value + 1}`
-  if (codeMode.value === 'layer') return `${t('x.sb_gcode')} • ${t('x.layer')} ${device.value?.layer_num ?? 0}`
-  return t('x.sb_gcode')
-})
-const codeStatus = computed(() => {
-  if (!lanTarget() || gcode.status === 'cloud') return t('x.sb_gc_cloud')
-  switch (gcode.status) {
-    case 'loading': return t('x.sb_gc_loading')
-    case 'indexing': return t('x.sb_gc_indexing', { p: Math.round(gcode.progress * 100) })
-    case 'large': return t('x.sb_gc_large')
-    case 'error': return t('x.sb_gc_error')
-    case 'ready': return t('x.sb_gc_nolayer')
-    default: return t('x.sb_gc_wait')
-  }
-})
-watch(() => [gcode.status, device.value?.layer_num, device.value?.mc_print_line_number], refreshCode)
+/* ---- the G-code strip, as wide as the right column ---- */
+const codeW = computed(() => Math.max(240, stage.w - holoW.value - 24 - 18))
 
 let fast = 0
 let slow = 0
@@ -240,7 +139,6 @@ watch(traceOn, (on) => {
 const freshen = () => {
   if (document.hidden) return
   now.value = new Date()
-  refreshCode()
 }
 /* The wake press would otherwise land on whatever control lies under the standby screen:
    it closes on pointerdown, and the browser still sends the click of that tap. */
@@ -258,7 +156,6 @@ onMounted(() => {
   document.addEventListener('visibilitychange', freshen)
   slow = window.setInterval(() => { driftIdx.value++ }, 90000)
   if (traceOn.value) raf = window.requestAnimationFrame(loop)
-  refreshCode()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', freshen)
@@ -283,15 +180,9 @@ onBeforeUnmount(() => {
 .sb-facts { width: 150px; padding-bottom: 2px; }
 .sb-facts > div { display: flex; justify-content: space-between; font-size: 15px; line-height: 18px; color: var(--c4); }
 .sb-facts .cap { font-size: 11px; color: var(--g5); }
-.sb-temps { display: flex; gap: 14px; margin-top: 6px; font-size: 14px; line-height: 17px; color: var(--g6); white-space: nowrap; overflow: hidden; }
+.sb-temps { display: flex; margin-top: 6px; font-size: 14px; line-height: 17px; color: var(--g6); white-space: nowrap; overflow: hidden; }
+.sb-temps > * + * { margin-left: 14px; }
 .sb-temps .cap { font-size: 10px; color: var(--g4); }
-.sb-code { margin-top: 8px; border-left: 3px solid var(--g2); padding-left: 6px; }
-.sb-code-h { display: flex; justify-content: space-between; color: var(--g4); margin-bottom: 2px; }
-.sb-est { color: var(--y4); }
-.sb-line { display: flex; font-family: ui-monospace, 'DejaVu Sans Mono', Menlo, Consolas, monospace; font-size: 11px; line-height: 14px; color: var(--g4); white-space: nowrap; overflow: hidden; text-transform: none; letter-spacing: 0; }
-.sb-line.cur { color: var(--o4); }
-.sb-ln { flex: none; width: 58px; text-align: right; margin-right: 8px; opacity: .6; }
-.sb-lt { overflow: hidden; text-overflow: ellipsis; }
-.sb-code-s { font-size: 12px; line-height: 15px; color: var(--g4); text-transform: none; }
+.sb-code { position: relative; margin-top: 8px; }
 .sb-hint { position: absolute; top: 30px; right: 18px; color: var(--g3); }
 </style>

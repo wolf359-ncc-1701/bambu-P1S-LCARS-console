@@ -40,9 +40,9 @@
         <div class="kv">
           <span class="k">{{ t('x.channel') }}</span>
           <template v-if="cloudCapable">
-            <LBtn class="br3 l1" :label="t('x.lk_lan')" tone="g2" shape="pl" :active="linkPref === 'local'" @press="setLink('local')" />
-            <LBtn class="br3 l2" :label="t('x.lk_cloud')" tone="g2" :active="linkPref === 'cloud'" @press="setLink('cloud')" />
-            <LBtn class="br3 l3" :label="t('x.lk_auto')" tone="g2" shape="pr" :active="linkPref === 'auto'" @press="setLink('auto')" />
+            <LBtn slop="3 1 3 1" class="br3 l1" :label="t('x.lk_lan')" tone="g2" shape="pl" :active="linkPref === 'local'" @press="setLink('local')" />
+            <LBtn slop="3 1 3 1" class="br3 l2" :label="t('x.lk_cloud')" tone="g2" :active="linkPref === 'cloud'" @press="setLink('cloud')" />
+            <LBtn slop="3 1 3 1" class="br3 l3" :label="t('x.lk_auto')" tone="g2" shape="pr" :active="linkPref === 'auto'" @press="setLink('auto')" />
             <span class="v now">{{ mode === 'cloud' ? t('x.lk_cloud') : mode === 'local' ? t('x.lk_lan') : '—' }}</span>
           </template>
           <span v-else class="v">{{ mode === 'local' ? t('x.link_local') : '—' }}</span>
@@ -51,8 +51,8 @@
         <div class="kv"><span class="k">{{ t('x.signal') }}</span><span class="v"><LSeg :value="signal" :max="100" :n="12" :w="120" :h="10" color="var(--c4)" /> <span class="num">{{ signal }}%</span></span></div>
         <div v-if="cloudCapable" class="kv">
           <span class="k">{{ t('x.lan_media') }}</span>
-          <LBtn class="br b1" :label="t('x.lm_on')" tone="g2" shape="pl" :active="lanMediaOn" :disabled="linkPref !== 'cloud'" @press="setLanMedia(true)" />
-          <LBtn class="br b2" :label="t('x.lm_off')" tone="g2" shape="pr" :active="!lanMediaOn" :disabled="linkPref !== 'cloud'" @press="setLanMedia(false)" />
+          <LBtn slop="3 1 3 1" class="br b1" :label="t('x.lm_on')" tone="g2" shape="pl" :active="lanMediaOn" :disabled="linkPref !== 'cloud'" @press="setLanMedia(true)" />
+          <LBtn slop="3 1 3 1" class="br b2" :label="t('x.lm_off')" tone="g2" shape="pr" :active="!lanMediaOn" :disabled="linkPref !== 'cloud'" @press="setLanMedia(false)" />
         </div>
         <div v-else class="kv"><span class="k">{{ t('x.storage') }}</span><span class="v">{{ device ? (device.sdcard ? t('x.mounted') : t('x.unmounted')) : '—' }}</span></div>
         <LBtn class="pa1" :label="t('x.relink')" tone="c2" shape="pr" dot :disabled="!currentDevice" @press="reconnect" />
@@ -68,8 +68,8 @@
         </div>
         <div class="kv">
           <span class="k">{{ t('x.ch_broker') }}</span>
-          <LBtn class="br b1" :label="t('x.ch_cloud')" tone="g2" shape="pl" :active="brokerDraft === 'cloud'" @press="brokerDraft = 'cloud'" />
-          <LBtn class="br b2" :label="t('x.ch_sim')" tone="g2" shape="pr" :active="brokerDraft === 'sim'" @press="brokerDraft = 'sim'" />
+          <LBtn slop="3 1 3 1" class="br b1" :label="t('x.ch_cloud')" tone="g2" shape="pl" :active="brokerDraft === 'cloud'" @press="brokerDraft = 'cloud'" />
+          <LBtn slop="3 1 3 1" class="br b2" :label="t('x.ch_sim')" tone="g2" shape="pr" :active="brokerDraft === 'sim'" @press="brokerDraft = 'sim'" />
         </div>
         <div class="kv"><span class="k">{{ t('x.address') }}</span><span class="v url">{{ brokerUrl(brokerDraft) }}</span></div>
         <div v-if="macDraft && !macOk" class="cap c-o4 mac-bad">{{ t('x.ch_mac_bad') }}</div>
@@ -137,6 +137,7 @@
           v-for="(g, i) in IFACE"
           :key="g"
           class="seg s3"
+          slop="0 1 2 1"
           :class="{ strobe: strobing === `if-${g}` }"
           :style="{ left: `${100 + i * 105}px` }"
           :label="t(`x.if_${g}`)"
@@ -150,7 +151,7 @@
         <template v-if="iface === 'display'">
           <div class="langs">
             <span class="k">{{ t('x.language') }}</span>
-            <LBtn v-for="(l, i) in LANGS" :key="l.v" class="lang" :lang="l.lang" :style="{ left: `${86 + i * 84}px` }" :label="l.label || t('x.lang_auto')" tone="g2" shape="pp" :active="langPref === l.v" @press="setLang(l.v)" />
+            <LBtn v-for="(l, i) in LANGS" :key="l.v" slop="3 2 3 2" class="lang" :lang="l.lang" :style="{ left: `${86 + i * 84}px` }" :label="l.label || t('x.lang_auto')" tone="g2" shape="pp" :active="langPref === l.v" @press="setLang(l.v)" />
           </div>
           <LToggle class="if0" compact :on="soundOn" :label="t('x.sound')" @toggle="toggleSound" />
           <!-- night mode and its window: each hour button steps one hour -->
@@ -175,7 +176,7 @@
           <!-- snapshot mode: how often a picture is fetched (the camera is let go in between) -->
           <div class="snap">
             <span class="k">{{ t('x.k_snap') }}</span>
-            <LSlider class="snap-s" :value="cam.snapS" :target="cam.snapS" :min="5" :max="60" :step="5" :n="11" :w="120" :h="22" color="var(--c3)" unit="s" :aria="t('x.k_snap')" @commit="setSnapInterval" />
+            <LSlider class="snap-s" :reach="4" :value="cam.snapS" :target="cam.snapS" :min="5" :max="60" :step="5" :n="11" :w="120" :h="22" color="var(--c3)" unit="s" :aria="t('x.k_snap')" @commit="setSnapInterval" />
             <span class="num snap-v">{{ cam.snapS }}s</span>
           </div>
           <LToggle class="kt kt1" :on="standby.enabled" :label="t('x.k_standby')" :sub="t('x.k_standby_d')" @toggle="setStandbyEnabled" />
@@ -572,7 +573,7 @@ onBeforeUnmount(() => {
 .kv .v { display: flex; align-items: center; font-size: 16px; color: var(--g6); }
 .kv .v .num { margin-left: 8px; }
 .url { font-size: 12px !important; text-transform: none; color: var(--g5) !important; }
-.inp { width: 200px; height: 26px; border: 0; border-bottom: 2px solid var(--o4); background: var(--g1); color: var(--o5); font-family: var(--lfont); font-size: 17px; padding: 0 6px; outline: none; text-transform: uppercase; }
+.inp { width: 200px; height: 30px; border: 0; border-bottom: 2px solid var(--o4); background: var(--g1); color: var(--o5); font-family: var(--lfont); font-size: 17px; padding: 0 6px; outline: none; text-transform: uppercase; }
 .br { position: absolute; top: 3px; width: 98px; height: 26px; font-size: 13px; }
 .br.b1 { left: 110px; }
 .br.b2 { left: 210px; }
@@ -632,7 +633,8 @@ onBeforeUnmount(() => {
 .sb1 { position: absolute; left: 0; top: 228px; width: 200px; height: 38px; }
 .sb2 { position: absolute; left: 206px; top: 228px; width: 208px; height: 38px; }
 .dx1 { position: absolute; left: 0; top: 222px; width: 188px; height: 42px; }
-.seg { position: absolute; top: 0; width: 103px; height: 24px; font-size: 13px; }
+/* boxed in by the pane top and the first row (8 px below): 28 high, 30 to touch */
+.seg { position: absolute; top: 0; width: 103px; height: 28px; font-size: 13px; }
 .mo1 { position: absolute; left: 0; top: 76px; width: calc(414px + var(--xw, 0px)); }
 .al-sum { font-size: 14px !important; }
 .mo-note { position: absolute; left: 0; top: 114px; width: calc(414px + var(--xw, 0px)); text-transform: none; line-height: 15px; }

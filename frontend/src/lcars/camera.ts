@@ -35,6 +35,8 @@ export const cam = reactive({
   fps: 0,
   retryAt: 0,
   error: '',
+  // the picture's width / height, from the newest frame (the home page lays out by it)
+  aspect: 16 / 9,
 })
 
 export const setSnapInterval = (s: number) => {

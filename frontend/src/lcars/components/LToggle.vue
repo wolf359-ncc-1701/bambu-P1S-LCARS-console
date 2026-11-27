@@ -42,6 +42,7 @@ const press = (e: Event) => {
 
 <style scoped>
 .tg { position: relative; height: 34px; cursor: pointer; outline: none; }
+.tg::after { content: ''; position: absolute; left: 0; right: 0; top: -2px; bottom: -2px; }
 .tg-bar { position: absolute; left: 0; top: 0; right: 76px; height: 34px; background: var(--g1); padding: 3px 8px; }
 .tg-l { display: block; font-size: 14px; line-height: 15px; color: var(--g6); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tg-s { display: block; font-size: 10px; line-height: 12px; color: var(--g5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
