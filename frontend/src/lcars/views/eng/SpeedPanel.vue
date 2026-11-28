@@ -146,7 +146,8 @@ const pick = async (lv: PrintSpeedLevel) => {
 .gauge { position: absolute; left: 0; top: 0; }
 .g-on { fill: var(--o4); }
 .g-off { fill: var(--g1); }
-.rung { position: absolute; left: 18px; right: 0; height: 48px; font-size: 16px; }
+/* an explicit width: an absolutely placed <button> does not stretch between left and right on older Chromium (the G7) */
+.rung { position: absolute; left: 18px; width: calc(var(--lw) - 18px); height: 48px; font-size: 16px; }
 .live { position: absolute; left: 22px; font-size: 10px; line-height: 12px; color: #000; background: var(--o6); padding: 0 3px; pointer-events: none; }
 .status { position: absolute; left: 18px; right: 0; top: 214px; text-align: right; color: var(--c4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

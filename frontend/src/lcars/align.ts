@@ -13,7 +13,13 @@ export type Insets = Record<Edge, number>
 type Saved = { insets: Insets, offset: { x: number, y: number }, step: number }
 
 const KEY = 'lcars_align'
-const zero = (): Saved => ({ insets: { t: 0, r: 0, b: 0, l: 0 }, offset: { x: 0, y: 0 }, step: 10 })
+/* The default: in the Android app (the LG G7 kiosk) the alignment measured on the device in its
+   enclosure, 2026-11-28: 81 real px off the left edge, 5 off the right. Elsewhere (a browser)
+   none. Reset returns here. */
+const inApp = () => typeof window !== 'undefined' && !!(window as unknown as { P1ScreenBridge?: unknown }).P1ScreenBridge
+const zero = (): Saved => (inApp()
+  ? { insets: { t: 0, r: 5, b: 0, l: 81 }, offset: { x: 0, y: 0 }, step: 10 }
+  : { insets: { t: 0, r: 0, b: 0, l: 0 }, offset: { x: 0, y: 0 }, step: 10 })
 
 const num = (v: unknown, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : d)
 const read = (): Saved => {
@@ -91,10 +97,11 @@ export const endAlign = (keep: boolean) => {
   align.edge = ''
   align.editing = false
 }
-/* back to no insets and no offset (the step is kept) */
+/* back to the default insets and offset (the step is kept) */
 export const resetAlign = () => {
-  Object.assign(align.insets, { t: 0, r: 0, b: 0, l: 0 })
-  Object.assign(align.offset, { x: 0, y: 0 })
+  const d = zero()
+  Object.assign(align.insets, d.insets)
+  Object.assign(align.offset, d.offset)
   if (!align.editing) write(current())
 }
 export const setStep = (v: number) => {
@@ -129,7 +136,8 @@ export const alignSummary = () => {
   const sg = (v: number) => (v > 0 ? `+${v}` : `${v}`)
   return `T${i.t} R${i.r} B${i.b} L${i.l} • X${sg(o.x)} Y${sg(o.y)}`
 }
+/* differs from the default (what reset would go back to) */
 export const alignIsSet = () => {
-  const i = align.insets, o = align.offset
-  return !!(i.t || i.r || i.b || i.l || o.x || o.y)
+  const i = align.insets, o = align.offset, d = zero()
+  return i.t !== d.insets.t || i.r !== d.insets.r || i.b !== d.insets.b || i.l !== d.insets.l || o.x !== d.offset.x || o.y !== d.offset.y
 }
