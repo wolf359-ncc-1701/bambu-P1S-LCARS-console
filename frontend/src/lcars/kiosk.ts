@@ -34,6 +34,39 @@ export const kiosk = reactive({
   errors: [] as { at: number, msg: string }[],
 })
 
+/* ---- effects resolution: how many backing pixels the 3D views draw per stage pixel ----
+   low 1, mid 1.5, high 2.5 (the long-standing cap), max the screen's own (about 4 on the G7).
+   A hot or throttled phone still drops to the low tier's 1.25 whatever is chosen. */
+export type FxRes = 'low' | 'mid' | 'high' | 'max'
+export const FX_SCALE: Record<FxRes, number> = { low: 1, mid: 1.5, high: 2.5, max: 8 }
+const FX_KEY = 'lcars_fx_res'
+export const fxPref = reactive({
+  res: ((): FxRes => { try { const v = localStorage.getItem(FX_KEY); return v === 'low' || v === 'mid' || v === 'max' ? v : 'high' } catch { return 'high' } })(),
+})
+export const setFxRes = (r: FxRes) => {
+  fxPref.res = r
+  try { localStorage.setItem(FX_KEY, r) } catch { /* private mode */ }
+}
+
+/* ---- brightness preference ----
+   auto: the console follows the phone's own brightness (its auto-brightness, when that is on
+   in the phone's settings) and dims below it by state; manual: a fixed level, and the dimmed
+   states never go above it. */
+const BRIGHT_KEY = 'lcars_bright'
+export const brightPref = reactive((() => {
+  try {
+    const v = JSON.parse(localStorage.getItem(BRIGHT_KEY) || 'null')
+    if (v && typeof v.auto === 'boolean' && typeof v.level === 'number') return { auto: v.auto, level: Math.max(.05, Math.min(1, v.level)) }
+  } catch { /* ignore */ }
+  return { auto: true, level: .8 }
+})())
+export const setBright = (p: Partial<{ auto: boolean, level: number }>) => {
+  if (p.auto !== undefined) brightPref.auto = p.auto
+  if (p.level !== undefined) brightPref.level = Math.max(.05, Math.min(1, p.level))
+  try { localStorage.setItem(BRIGHT_KEY, JSON.stringify(brightPref)) } catch { /* private mode */ }
+  pushBrightness()
+}
+
 const DIM_KEY = 'lcars_dim'
 export const dimPref = reactive({ on: (() => { try { return localStorage.getItem(DIM_KEY) !== '0' } catch { return true } })() })
 export const setDimPref = (on: boolean) => {
@@ -83,14 +116,20 @@ export const setLight = (l: Light) => {
   if (l === kiosk.light) return
   kiosk.light = l
   kiosk.dimmed = l !== 'full'
-  if (b?.setBrightness) {
-    try { b.setBrightness(LEVEL[l]) } catch { /* bridge gone */ }
-  }
+  pushBrightness()
   const sleep = l === 'sleep'
   if (sleep !== sleeping && b?.setSleepAllowed) {
     sleeping = sleep
     try { b.setSleepAllowed(sleep) } catch { /* bridge gone */ }
   }
+}
+/* the window brightness for the current state and the brightness preference */
+const pushBrightness = () => {
+  const b = bridge()
+  if (!b?.setBrightness) return
+  const l = kiosk.light
+  const v = brightPref.auto ? LEVEL[l] : l === 'full' ? brightPref.level : Math.min(LEVEL[l], brightPref.level)
+  try { b.setBrightness(v) } catch { /* bridge gone */ }
 }
 /* turns a sleeping screen back on (a job started, an alert); harmless when it is on */
 export const wakeScreen = () => {

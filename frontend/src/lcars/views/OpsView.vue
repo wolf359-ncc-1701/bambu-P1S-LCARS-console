@@ -164,6 +164,16 @@
             <LToggle class="if3" compact :on="native.awake" :label="t('x.awake')" @toggle="setNative('awake', $event)" />
             <LToggle v-if="kiosk.canDim" class="if4" compact :on="dimPref.on" :label="t('x.k_dim')" @toggle="setDimPref" />
           </template>
+          <!-- effects resolution of the 3D views -->
+          <div class="fxr">
+            <span class="k">{{ t('x.k_fxres') }}</span>
+            <LBtn v-for="(f, i) in FXRES" :key="f" class="fxb" slop="2 1 2 1" :style="{ left: `calc(40px + ${i} * (42px + var(--xw, 0px) / 16))` }" :label="t(`x.fx_${f}`)" tone="g2" :shape="i === 0 ? 'pl' : i === FXRES.length - 1 ? 'pr' : ''" :active="fxPref.res === f" @press="setFxRes(f)" />
+          </div>
+          <!-- brightness: the phone's own (auto) or a fixed level -->
+          <template v-if="kiosk.canDim">
+            <LToggle class="bra" compact :on="brightPref.auto" :label="t('x.k_bright_auto')" @toggle="setBright({ auto: $event })" />
+            <LSlider class="brs" :reach="6" :value="Math.round(brightPref.level * 100)" :target="Math.round(brightPref.level * 100)" :min="5" :max="100" :step="5" :n="12" :w="brightW" :h="22" color="var(--y4)" unit="%" :disabled="brightPref.auto" :aria="t('x.k_bright')" @commit="setBright({ level: $event / 100 })" />
+          </template>
           <div class="kstat">
             <div><span class="k">{{ t('x.k_fx') }}</span> <span :class="kiosk.tier === 'high' ? 'c-c4' : 'c-y'">{{ t(kiosk.tier === 'high' ? 'x.k_fx_full' : 'x.k_fx_low') }}</span><template v-if="kiosk.battery"> <span class="k">{{ t('x.k_batt') }}</span> <span class="num" :class="kiosk.hot ? 'c-y' : 'c-o5'">{{ kiosk.battery.temp.toFixed(1) }}°</span> <span class="num c-g5">{{ kiosk.battery.level }}%</span></template></div>
             <div class="ell"><span class="k">{{ t('x.k_err') }}</span> <span class="num" :class="kiosk.errors.length ? 'c-y' : 'c-g5'">{{ kiosk.errors.length }}</span> <span v-if="kiosk.errors[0]" class="kerr">{{ kiosk.errors[0].msg }}</span></div>
@@ -218,7 +228,8 @@ import { detectLocale, getLocalePreference, setLocalePreference, type LocalePref
 import { MAC_RE, brokerUrl, chamber as ch, chamberLive, saveChamberConfig, type ChamberBroker } from '../chamber'
 import { usePlant } from '../systems'
 import { setSound, sound } from '../sfx'
-import { dimPref, kiosk, setDimPref } from '../kiosk'
+import { brightPref, dimPref, fxPref, setBright, setFxRes, type FxRes, kiosk, setDimPref } from '../kiosk'
+import { stage } from '../stage'
 import { confirmPanel, notice, run, useStrobe } from '../ui'
 import { demo, startDemo, stopDemo } from '../demo'
 import { alignIsSet, alignSummary, resetAlign, startAlign } from '../align'
@@ -425,6 +436,9 @@ const resetAlignAsk = async () => {
 
 /* ---- interface ---- */
 // each language's name in its own script (and font)
+const FXRES: FxRes[] = ['low', 'mid', 'high', 'max']
+// the brightness slider takes what is left of the row after its switch
+const brightW = computed(() => Math.max(80, 94 + Math.floor(stage.wing / 4)))
 const LANGS: { v: LocalePreference, label: string, lang?: string }[] = [
   { v: 'auto', label: '' },
   { v: 'zh', label: '简体中文', lang: 'zh-Hans' },
@@ -617,7 +631,12 @@ onBeforeUnmount(() => {
 .if2 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 108px; width: calc(205px + var(--xw, 0px) / 2); }
 .if3 { position: absolute; left: 0; top: 146px; width: calc(205px + var(--xw, 0px) / 2); }
 .if4 { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 146px; width: calc(205px + var(--xw, 0px) / 2); }
-.kstat { position: absolute; left: 0; top: 190px; width: calc(414px + var(--xw, 0px)); font-size: 13px; line-height: 18px; color: var(--g6); }
+.fxr { position: absolute; left: 0; top: 190px; width: calc(205px + var(--xw, 0px) / 2); height: 34px; }
+.fxr .k { position: absolute; left: 0; top: 10px; }
+.fxb { position: absolute; top: 0; width: calc(40px + var(--xw, 0px) / 16); height: 34px; font-size: 14px; }
+.bra { position: absolute; left: calc(209px + var(--xw, 0px) / 2); top: 190px; width: calc(105px + var(--xw, 0px) / 4); }
+.brs { position: absolute; left: calc(320px + var(--xw, 0px) * .75); top: 196px; }
+.kstat { position: absolute; left: 0; top: 230px; width: calc(414px + var(--xw, 0px)); font-size: 13px; line-height: 18px; color: var(--g6); }
 .kerr { text-transform: none; color: var(--g5); font-size: 12px; }
 .ver { position: absolute; right: 0; top: 0; font-size: 13px; }
 .kt { position: absolute; left: 0; width: calc(414px + var(--xw, 0px)); }

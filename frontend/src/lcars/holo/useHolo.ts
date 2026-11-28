@@ -9,7 +9,7 @@ import { onBeforeUnmount, onMounted, watch, type Ref } from 'vue'
 import type { Cam } from '../plant3d'
 import { HoloRenderer, hexToRgb, type GroupStyle } from './gl'
 import type { Mesh, V3 } from './mesh'
-import { kiosk, reportFrame } from '../kiosk'
+import { FX_SCALE, fxPref, kiosk, reportFrame } from '../kiosk'
 import { stage } from '../stage'
 import { standby } from '../standby'
 
@@ -111,7 +111,9 @@ export const useHolo = (o: {
 
   const pixelScale = () => {
     const dev = (window.devicePixelRatio || 1) * (stage.scale || 1)
-    return Math.max(1, Math.min(dev, kiosk.tier === 'high' && !o.standby ? 2.5 : 1.25))
+    // the chosen effects resolution; the standby screen and a hot phone stay at 1.25 at most
+    const cap = kiosk.tier === 'high' && !o.standby ? FX_SCALE[fxPref.res] : Math.min(1.25, FX_SCALE[fxPref.res])
+    return Math.max(1, Math.min(dev, cap))
   }
 
   const frame = (now: number) => {
